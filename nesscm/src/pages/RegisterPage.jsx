@@ -1,13 +1,20 @@
 import React, { useState } from "react";
 import { authApi } from "../api/authApi";
+import { Form, Button, Modal } from "react-bootstrap";
+import RegisterForm from "../components/RegisterForm";
+import OtpModal from "../components/OtpModal";
 
 function RegisterPage() {
     const [form, setForm] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
     });
+
+    const [otp, setOtp] = useState("");
+    const [showOtpForm, setShowOtpForm] = useState(false);
+
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -20,84 +27,79 @@ function RegisterPage() {
         });
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault(); //Ngăn form reload trang khi submit
-        setMessage('');
-        setError('');
-         if (form.password !== form.confirmPassword) {
-           setError("The re-entered password does not match.");
-           return;
-         }
-        setLoading(true);
-        try{
-            const res = await authApi.register(form);
-            console.log(res);
-            
-            setMessage(res.data.message || 'Register success');
-        // eslint-disable-next-line no-unused-vars
-        } catch (err){
-          console.log("ERR:", err);
-          console.log("STATUS:", err.response && err.response.status);
-          console.log("DATA:", err.response && err.response.data);
-          if (err.response && err.response.data && err.response.data.message){
-            setError(err.response.data.message);
-          } else{
-             setError("Register failed");
-          }
-           
-        } finally {
-            setLoading(false);
-        }
-    }
-    return (
-      <form onSubmit={handleSubmit}>
-        <div>
-          <input
-            name="username"
-            value={form.username}
-            onChange={handleChange}
-            placeholder="Username"
-            required
-          />
-        </div>
-        <div>
-          <input
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="Email"
-            required
-          />
-        </div>
-        <div>
-          <input
-            name="password"
-            type="password"
-            value={form.password}
-            onChange={handleChange}
-            placeholder="Password"
-            required
-          />
-        </div>
-        <div>
-          <input
-            name="confirmPassword"
-            type="password"
-            value={form.confirmPassword}
-            onChange={handleChange}
-            placeholder="Confirm password"
-            required
-          />
-        </div>
-        <button type="submit" disabled={loading}>
-          {loading ? "Registering..." : "Register"}
-        </button>
+     const handleRegister = async (e) => {
+       e.preventDefault();
+       setMessage("");
+       setError("");
 
-        {message && <p style={{ color: "green" }}>{message}</p>}
-        {error && <p style={{ color: "red" }}>{error}</p>}
-      </form>
-    );
+       if (form.password !== form.confirmPassword) {
+         setError("Mật khẩu xác nhận không khớp");
+         return;
+       }
+
+       setLoading(true);
+       try {
+         const res = await authApi.register({
+           username: form.username,
+           email: form.email,
+           password: form.password,
+         });
+         setMessage(res.data.message || "Đã gửi OTP tới email");
+         setShowOtpForm(true);
+       } catch (err) {
+         setError(err.response?.data?.message || "Đăng ký thất bại");
+       } finally {
+         setLoading(false);
+       }
+     };
+
+     const handleConfirmOtp = async () => {
+       setError("");
+       setMessage("");
+
+       if (!otp) {
+         setError("Vui lòng nhập OTP");
+         return;
+       }
+
+       try {
+         const res = await authApi.confirmRegister({
+           username: form.username,
+           email: form.email,
+           password: form.password,
+           otp: otp,
+         });
+         setMessage(res.data.message || "Đăng ký thành công");
+         setShowOtpForm(false);
+         // TODO: chuyển hướng nếu cần, ví dụ navigate('/login');
+       } catch (err) {
+         setError(
+           err.response?.data?.message || "OTP không hợp lệ hoặc đã hết hạn"
+         );
+       }
+     };
+      return (
+        <>
+          <RegisterForm
+            form={form}
+            loading={loading}
+            message={message}
+            error={error}
+            onChange={handleChange}
+            onSubmit={handleRegister}
+          />
+
+          <OtpModal
+            show={showOtpForm}
+            email={form.email}
+            otp={otp}
+            error={error}
+            onClose={() => setShowOtpForm(false)}
+            onChangeOtp={setOtp}
+            onConfirm={handleConfirmOtp}
+          />
+        </>
+      );
 }
 
 export default RegisterPage;
