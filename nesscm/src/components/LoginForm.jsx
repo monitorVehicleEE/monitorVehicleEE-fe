@@ -1,47 +1,49 @@
-import { Form, Button } from "react-bootstrap";
+import React from "react";
+import { Form, Button, Alert, Spinner } from "react-bootstrap";
 
 function LoginForm({ form, loading, message, error, onChange, onSubmit }) {
   return (
-    <Form
-      onSubmit={onSubmit}
-      className="p-4 border rounded"
-      style={{ maxWidth: 400, margin: "0 auto" }}
-    >
-      <h3 className="mb-3 text-center">Đăng nhập</h3>
+    <div style={{ maxWidth: 400, margin: "40px auto" }}>
+      <h3 className="mb-3">Đăng nhập</h3>
 
-      <Form.Group className="mb-3" controlId="loginEmail">
-        <Form.Label>Email</Form.Label>
-        <Form.Control
-          name="email"
-          type="email"
-          value={form.email}
-          onChange={onChange}
-          placeholder="Nhập email"
-          required
-        />
-      </Form.Group>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {message && <Alert variant="success">{message}</Alert>}
 
-      <Form.Group className="mb-3" controlId="loginPassword">
-        <Form.Label>Password</Form.Label>
-        <Form.Control
-          name="password"
-          type="password"
-          value={form.password}
-          onChange={onChange}
-          placeholder="Nhập mật khẩu"
-          required
-        />
-      </Form.Group>
+      <Form onSubmit={onSubmit}>
+        <Form.Group className="mb-3" controlId="username">
+          <Form.Label>Tên đăng nhập</Form.Label>
+          <Form.Control
+            type="text"
+            name="username"
+            value={form.username}
+            onChange={onChange}
+            placeholder="Nhập username"
+            required
+          />
+        </Form.Group>
 
-      <div className="d-grid">
-        <Button type="submit" variant="primary" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
+        <Form.Group className="mb-3" controlId="password">
+          <Form.Label>Mật khẩu</Form.Label>
+          <Form.Control
+            type="password"
+            name="password"
+            value={form.password}
+            onChange={onChange}
+            placeholder="Nhập mật khẩu"
+            required
+          />
+        </Form.Group>
+
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={loading}
+          className="w-100"
+        >
+          {loading ? <Spinner size="sm" animation="border" /> : "Đăng nhập"}
         </Button>
-      </div>
-
-      {message && <div className="text-success mt-2">{message}</div>}
-      {error && <div className="text-danger mt-2">{error}</div>}
-    </Form>
+      </Form>
+    </div>
   );
 }
 

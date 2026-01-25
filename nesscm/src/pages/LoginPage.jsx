@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { Form, Button } from "react-bootstrap";
 import { authApi } from "../api/authApi";
+import LoginForm from "../components/LoginForm";
 
 function LoginPage() {
   const [form, setForm] = useState({
-    email: "",
+    username: "",
     password: "",
   });
 
@@ -27,13 +27,21 @@ function LoginPage() {
 
     try {
       const res = await authApi.login({
-        email: form.email,
+        username: form.username,
         password: form.password,
       });
-      setMessage(res.data.message || "Đăng nhập thành công");
-      // TODO: lưu token, navigate('/dashboard') ...
+
+      const token = res.data.token;
+      const msg =  "Đăng nhập thành công";
+
+      localStorage.setItem("access_token", token);
+      setMessage(msg);
+      // TODO: điều hướng, vd: navigate("/dashboard");
+    // eslint-disable-next-line no-unused-vars
     } catch (err) {
-      setError(err.response?.data?.message || "Đăng nhập thất bại");
+      setError(
+          "Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản/mật khẩu.",
+      );
     } finally {
       setLoading(false);
     }
