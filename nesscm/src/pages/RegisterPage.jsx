@@ -3,6 +3,7 @@ import { authApi } from "../api/authApi";
 import { Form, Button, Modal } from "react-bootstrap";
 import RegisterForm from "../components/RegisterForm";
 import OtpModal from "../components/OtpModal";
+import { useNavigate } from "react-router-dom";
 
 function RegisterPage() {
     const [form, setForm] = useState({
@@ -18,6 +19,7 @@ function RegisterPage() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
         setForm({
@@ -71,7 +73,9 @@ function RegisterPage() {
          });
          setMessage(res.data.message || "Đăng ký thành công");
          setShowOtpForm(false);
-         // TODO: chuyển hướng nếu cần, ví dụ navigate('/login');
+         setTimeout(() => {
+           navigate("/login", { replace: true });
+         }, 500);
        } catch (err) {
          setError(
            err.response?.data?.message || "OTP không hợp lệ hoặc đã hết hạn"

@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Form, Button, Alert, Spinner } from "react-bootstrap";
 
 function LoginForm({ form, loading, message, error, onChange, onSubmit }) {
@@ -43,6 +44,10 @@ function LoginForm({ form, loading, message, error, onChange, onSubmit }) {
           {loading ? <Spinner size="sm" animation="border" /> : "Đăng nhập"}
         </Button>
       </Form>
+
+      <div style={{ marginTop: "15px", textAlign: "center" }}>
+        Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
+      </div>
     </div>
   );
 }

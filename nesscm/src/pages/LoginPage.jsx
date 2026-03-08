@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { authApi } from "../api/authApi";
 import LoginForm from "../components/LoginForm";
+import { useNavigate } from "react-router-dom";
 
 function LoginPage() {
   const [form, setForm] = useState({
@@ -11,6 +12,7 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm({
@@ -35,8 +37,13 @@ function LoginPage() {
       const msg =  "Đăng nhập thành công";
 
       localStorage.setItem("access_token", token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      // console.log(localStorage.getItem("user"));
+      
       setMessage(msg);
-      // TODO: điều hướng, vd: navigate("/dashboard");
+      setTimeout(() => {
+        navigate("/dashboard", { replace: true });
+      }, 500);
     // eslint-disable-next-line no-unused-vars
     } catch (err) {
       setError(
