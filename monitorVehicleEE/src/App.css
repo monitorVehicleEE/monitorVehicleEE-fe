@@ -1,42 +1,258 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.dashboard-navbar {
+  border-bottom: 2px solid #d0d0d0;
+  /* màu viền navbar */
+}
+.alert-panel {
+  border: 1px solid #f97316;
+  /* màu viền panel */
+}
+.camera-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  /* border-radius: 16px; */
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.camera-grid>* {
+  flex: 0 0 calc(50% - 8px);
+  border-radius: 16px;
+  /* Desktop: 2 card / hàng */
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+.camera-panel-actions {
+  display: flex;
+  gap: 10px;
 }
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.stats-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  /* Desktop */
+}
+.stats-card {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  /* viền xám nhạt */
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.stats-card--primary {
+  border-color: #50D890;
+  /* xanh dương */
+}
+
+.stats-card--warning {
+  border-color: #4F98CA;
+  /* vàng */
+}
+
+.stats-card--danger {
+  border-color: #ef4444;
+  /* đỏ */
+}
+
+.stats-card-title {
+  color: #000000;
+  font-size: 14px;
+}
+
+.stats-card-value {
+  margin-top: 8px;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+/*********************
+XE
+*********************/
+/* Container chung */
+.vehicle-list {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+/* Header */
+.vehicle-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.vehicle-list-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.vehicle-list-link {
+  border: none;
+  background: transparent;
+  color: #0ea5e9;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Tabs */
+.vehicle-tab ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px 0;
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.vehicle-tab li {
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vehicle-tab li:hover {
+  background-color: #e5e7eb;
+}
+
+.vehicle-tab li.active {
+  background-color: #50D890;
+  color: #ffffff;
+}
+
+/* List */
+.vehicle-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vehicle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.vehicle-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vehicle-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-size: 16px;
+}
+
+.vehicle-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.vehicle-plate {
+  font-weight: 600;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.vehicle-meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.vehicle-meta .dot {
+  margin: 0 4px;
+}
+
+/* Badge trạng thái – màu bám theo image */
+.vehicle-status-wrapper {
+  margin-left: 12px;
+}
+
+.vehicle-status {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* Đang đỗ (xanh nhạt / an toàn) */
+.badge-normal {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* Chuyển động (vàng / trạng thái trung gian) */
+.badge-moving {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Cảnh báo (đỏ / lỗi) */
+.badge-warning {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Responsive nhỏ: stack đẹp hơn */
+@media (max-width: 640px) {
+  .vehicle-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
-  to {
-    transform: rotate(360deg);
+
+  .vehicle-status-wrapper {
+    align-self: flex-end;
+  }
+}
+/********************* 
+RESPONSIVE 
+*********************/
+
+/* Màn hình nhỏ: cho nút xuống dòng, full width giống block button */
+@media (max-width: 767px) {
+  .camera-panel-actions {
+    flex-direction: column;
+    /* stack dọc */
+    width: 100%;
+  }
+
+  .camera-panel-actions .btn {
+    width: 100%;
+    /* nút full-width, dễ bấm */
+  }
+  .camera-grid>* {
+    flex: 0 0 100%;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
-.card {
-  padding: 2em;
-}
 
-.read-the-docs {
-  color: #888;
-}
+/* @media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+} */
