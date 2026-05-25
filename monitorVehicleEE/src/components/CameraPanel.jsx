@@ -5,7 +5,7 @@ import { Badge } from "react-bootstrap";
 
 import LoadingCamera from "./LoadingCamera";
 
-function CameraPanel({ camId }) {
+function CameraPanel({ camId = 27}) {
   const [streamUrl, setStreamUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [cameraRunning, setCameraRunning] = useState(false);

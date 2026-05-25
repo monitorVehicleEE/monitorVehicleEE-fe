@@ -1,2 +1,6 @@
- - npm install
- - npm install react-router-dom axios
+- cd/
+- npm install
+- npm install react-router-dom axios
+- npm install lucide-react
+- npm install recharts
+- npm install hls.js

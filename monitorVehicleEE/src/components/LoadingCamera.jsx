@@ -14,7 +14,7 @@ function LoadingCamera() {
       }}
     >
       <Lottie animationData={rippleLoader} loop={true} style={{ width: 120 }} />
-      <p style={{ color: "#fff", marginTop: 10 }}>Đang khởi tạo camera...</p>
+      
     </div>
   );
 }
