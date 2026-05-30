@@ -1,7 +1,8 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import { authApi } from "../api/authApi";
 import LoginForm from "../components/LoginForm";
-import { useNavigate } from "react-router-dom";
 
 function LoginPage() {
   const [form, setForm] = useState({
@@ -33,22 +34,16 @@ function LoginPage() {
         password: form.password,
       });
 
-      const token = res.data.token;
-      const msg =  "Đăng nhập thành công";
-
-      localStorage.setItem("access_token", token);
+      localStorage.setItem("access_token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      // console.log(localStorage.getItem("user"));
-      
-      setMessage(msg);
+
+      setMessage("Đăng nhập thành công");
       setTimeout(() => {
         navigate("/dashboard", { replace: true });
       }, 500);
-    // eslint-disable-next-line no-unused-vars
     } catch (err) {
-      setError(
-          "Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản/mật khẩu.",
-      );
+      console.error(err);
+      setError("Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản/mật khẩu.");
     } finally {
       setLoading(false);
     }

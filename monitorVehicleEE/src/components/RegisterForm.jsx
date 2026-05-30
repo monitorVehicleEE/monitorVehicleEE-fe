@@ -1,70 +1,102 @@
-import { Form, Button } from "react-bootstrap";
+import { Link } from "react-router-dom";
+import { Lock, Mail, ShieldCheck, User, UserPlus } from "lucide-react";
 
 function RegisterForm({ form, loading, message, error, onChange, onSubmit }) {
   return (
-    <Form
-      onSubmit={onSubmit}
-      className="p-4 border rounded"
-      style={{ maxWidth: 400, margin: "0 auto" }}
-    >
-      <h3 className="mb-3 text-center">Đăng ký</h3>
+    <div className="auth-page">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <div className="auth-brand-mark">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <h1>VehicleOps</h1>
+            <p>Factory Gate Security</p>
+          </div>
+        </div>
 
-      <Form.Group className="mb-3" controlId="username">
-        <Form.Label>Username</Form.Label>
-        <Form.Control
-          name="username"
-          value={form.username}
-          onChange={onChange}
-          placeholder="Nhập username"
-          required
-        />
-      </Form.Group>
+        <div className="auth-heading">
+          <h2>Đăng ký</h2>
+        </div>
 
-      <Form.Group className="mb-3" controlId="email">
-        <Form.Label>Email</Form.Label>
-        <Form.Control
-          name="email"
-          type="email"
-          value={form.email}
-          onChange={onChange}
-          placeholder="Nhập email"
-          required
-        />
-      </Form.Group>
+        {message && <div className="auth-alert success">{message}</div>}
+        {error && <div className="auth-alert error">{error}</div>}
 
-      <Form.Group className="mb-3" controlId="password">
-        <Form.Label>Password</Form.Label>
-        <Form.Control
-          name="password"
-          type="password"
-          value={form.password}
-          onChange={onChange}
-          placeholder="Nhập mật khẩu"
-          required
-        />
-      </Form.Group>
+        <form className="auth-form" onSubmit={onSubmit}>
+          <label className="auth-field" htmlFor="username">
+            <span>Username</span>
+            <div className="auth-input-wrap">
+              <User className="w-5 h-5" />
+              <input
+                id="username"
+                name="username"
+                value={form.username}
+                onChange={onChange}
+                placeholder="Nhập username"
+                required
+              />
+            </div>
+          </label>
 
-      <Form.Group className="mb-3" controlId="confirmPassword">
-        <Form.Label>Confirm password</Form.Label>
-        <Form.Control
-          name="confirmPassword"
-          type="password"
-          value={form.confirmPassword}
-          onChange={onChange}
-          placeholder="Nhập lại mật khẩu"
-          required
-        />
-      </Form.Group>
+          <label className="auth-field" htmlFor="email">
+            <span>Email</span>
+            <div className="auth-input-wrap">
+              <Mail className="w-5 h-5" />
+              <input
+                id="email"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={onChange}
+                placeholder="Nhập email"
+                required
+              />
+            </div>
+          </label>
 
-      <div className="d-grid">
-        <Button type="submit" variant="primary" disabled={loading}>
-          {loading ? "Registering..." : "Register & Send OTP"}
-        </Button>
-      </div>
+          <label className="auth-field" htmlFor="password">
+            <span>Mật khẩu</span>
+            <div className="auth-input-wrap">
+              <Lock className="w-5 h-5" />
+              <input
+                id="password"
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={onChange}
+                placeholder="Nhập mật khẩu"
+                required
+              />
+            </div>
+          </label>
 
-      {message && <div className="text-success mt-2">{message}</div>}
-      {error && <div className="text-danger mt-2">{error}</div>}
-    </Form>
+          <label className="auth-field" htmlFor="confirmPassword">
+            <span>Xác nhận mật khẩu</span>
+            <div className="auth-input-wrap">
+              <Lock className="w-5 h-5" />
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                value={form.confirmPassword}
+                onChange={onChange}
+                placeholder="Nhập lại mật khẩu"
+                required
+              />
+            </div>
+          </label>
+
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading ? <span className="auth-spinner" /> : <UserPlus className="w-5 h-5" />}
+            <span>{loading ? "Đang gửi OTP" : "Đăng ký"}</span>
+          </button>
+        </form>
+
+        <p className="auth-switch">
+          Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
+        </p>
+      </section>
+    </div>
   );
 }
 

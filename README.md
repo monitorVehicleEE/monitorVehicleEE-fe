@@ -1,5 +1,6 @@
 - cd/
 - npm install
+- npm install lottie-react
 - npm install react-router-dom axios
 - npm install lucide-react
 - npm install recharts

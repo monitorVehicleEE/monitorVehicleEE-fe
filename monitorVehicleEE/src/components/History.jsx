@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { vehiclesAPI, camerasAPI } from '../services/api';
 import { Download, Filter } from 'lucide-react';
 import { formatVehicleType, formatVietnamDateTime, VEHICLE_TYPES } from '../utils/format';
+import {
+  formatEventStatus,
+  formatEventType,
+  formatPercent,
+  getEventTime,
+  getPlateConfidence,
+  getVehicleConfidence,
+} from '../utils/vehicleEvent';
 
 const History = () => {
   const [vehicles, setVehicles] = useState([]);
@@ -33,6 +41,7 @@ const History = () => {
   const loadVehicles = async () => {
     setLoading(true);
     try {
+      // eslint-disable-next-line no-unused-vars
       const params = Object.fromEntries(Object.entries(filters).filter(([_, value]) => value !== ''));
       const response = await vehiclesAPI.list(params);
       setVehicles(response.data);
@@ -48,15 +57,27 @@ const History = () => {
   };
 
   const exportCSV = () => {
-    const headers = ['ID', 'Camera', 'Loại xe', 'Biển số', 'Thời gian', 'Hướng', 'Độ tin cậy'];
+    const headers = [
+      "ID",
+      "Camera",
+      "Loại Xe",
+      "Biển số",
+      "Thời gian",
+      "Hướng",
+      "Trạng thái",
+      "Độ tin cậy xe",
+      "Độ tin cậy biển số",
+    ];
     const rows = vehicles.map(v => [
       v.id,
       v.camera_id,
       formatVehicleType(v.vehicle_type),
-      '',
-      formatVietnamDateTime(v.timestamp),
-      v.direction,
-      v.confidence,
+      v.plate || '',
+      formatVietnamDateTime(getEventTime(v)),
+      formatEventType(v.event_type || v.direction),
+      formatEventStatus(v.status),
+      getVehicleConfidence(v),
+      getPlateConfidence(v),
     ]);
 
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -117,36 +138,34 @@ const History = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Camera</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại xe</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Biển số</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hướng</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Track ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Độ tin cậy</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Độ tin cậy xe</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Độ tin cậy biển số</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {vehicles.map(vehicle => (
                   <tr key={vehicle.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vehicle.id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Camera {vehicle.camera_id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Camera {vehicle.camera_id || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                         {formatVehicleType(vehicle.vehicle_type)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatVietnamDateTime(vehicle.timestamp)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{vehicle.plate || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatVietnamDateTime(getEventTime(vehicle))}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        vehicle.direction === 'entry' ? 'bg-green-100 text-green-800' :
-                        vehicle.direction === 'exit' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {vehicle.direction === 'entry' ? 'Vào' : vehicle.direction === 'exit' ? 'Ra' : 'N/A'}
+                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                        {formatEventType(vehicle.event_type || vehicle.direction)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vehicle.track_id || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {vehicle.confidence ? `${(vehicle.confidence * 100).toFixed(1)}%` : 'N/A'}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatEventStatus(vehicle.status)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatPercent(getVehicleConfidence(vehicle))}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatPercent(getPlateConfidence(vehicle))}</td>
                   </tr>
                 ))}
               </tbody>

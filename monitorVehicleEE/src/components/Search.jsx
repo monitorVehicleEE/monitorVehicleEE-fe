@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { vehiclesAPI } from '../services/api';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { formatVehicleType, formatVietnamDateTime } from '../utils/format';
+import {
+  formatEventType,
+  formatPercent,
+  getEventTime,
+  getPlateConfidence,
+  getVehicleConfidence,
+} from '../utils/vehicleEvent';
 
 const Search = () => {
   const [plateNumber, setPlateNumber] = useState('');
@@ -99,32 +106,31 @@ const Search = () => {
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="font-semibold text-blue-600">
-                          {result.plate?.plate_number || 'N/A'}
+                          {result.plate?.plate_number || result.plate || 'N/A'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 capitalize">
-                          {formatVehicleType(result.vehicle?.vehicle_type)}
+                          {formatVehicleType(result.vehicle?.vehicle_type || result.vehicle_type)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        Camera {result.vehicle?.camera_id}
+                        Camera {result.vehicle?.camera_id || result.camera_id || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatVietnamDateTime(result.vehicle?.timestamp)}
+                        {formatVietnamDateTime(getEventTime(result.vehicle || result))}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          result.vehicle?.direction === 'entry' ? 'bg-green-100 text-green-800' :
-                          result.vehicle?.direction === 'exit' ? 'bg-red-100 text-red-800' :
+                          (result.vehicle?.event_type || result.event_type || result.vehicle?.direction) === 'IN' ? 'bg-green-100 text-green-800' :
+                          (result.vehicle?.event_type || result.event_type || result.vehicle?.direction) === 'OUT' ? 'bg-red-100 text-red-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
-                          {result.vehicle?.direction === 'entry' ? 'Vào' :
-                           result.vehicle?.direction === 'exit' ? 'Ra' : 'N/A'}
+                          {formatEventType(result.vehicle?.event_type || result.event_type || result.vehicle?.direction)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.plate?.confidence ? `${(result.plate.confidence * 100).toFixed(1)}%` : 'N/A'}
+                        {formatPercent(getPlateConfidence(result) ?? getVehicleConfidence(result.vehicle || result))}
                       </td>
                     </tr>
                   ))}

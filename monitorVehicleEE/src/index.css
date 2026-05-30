@@ -557,7 +557,7 @@ a {
 .video-stage video {
   width: 100%;
   height: 100%;
-  max-height: calc(100vh - 230px);
+  /* max-height: calc(100vh - 230px); */
   object-fit: contain;
   opacity: 0;
 }
