@@ -23,3 +23,38 @@ export const stopCamera = async (camId) => {
 export const buildCameraStreamUrl = (camId, width = 480) => {
   return `${API_URL}/stream/${camId}?w=${width}&t=${Date.now()}`;
 };
+
+export const buildEventMediaUrl = (path) => {
+  if (!path) return "";
+
+  const normalizedPath = String(path).replaceAll("\\", "/");
+
+  if (/^https?:\/\//i.test(normalizedPath)) {
+    try {
+      const url = new URL(normalizedPath);
+
+      if (
+        (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+        url.pathname.startsWith("/event-images/")
+      ) {
+        return `${API_URL}${url.pathname}${url.search}`;
+      }
+    } catch (error) {
+      console.error("Invalid event media URL:", normalizedPath, error);
+    }
+
+    return normalizedPath;
+  }
+
+  const eventsIndex = normalizedPath.indexOf("events/");
+
+  if (eventsIndex >= 0) {
+    return `${API_URL}/event-images/${normalizedPath.slice(eventsIndex + 7)}`;
+  }
+
+  if (normalizedPath.startsWith("/event-images/")) {
+    return `${API_URL}${normalizedPath}`;
+  }
+
+  return normalizedPath;
+};

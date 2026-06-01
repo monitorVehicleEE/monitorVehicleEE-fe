@@ -11,7 +11,7 @@ function LoginForm({ form, loading, message, error, onChange, onSubmit }) {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h1>VehicleOps</h1>
+            <h1>NQ MOVEE</h1>
             <p>Factory Gate Security</p>
           </div>
         </div>

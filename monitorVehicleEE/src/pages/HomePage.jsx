@@ -96,7 +96,7 @@ function Sidebar({ userName, onLogout }) {
           <ShieldCheck className="w-6 h-6" />
         </div>
         <div>
-          <h1>VehicleOps</h1>
+          <h1>NQ MOVEE</h1>
           <p>Factory Gate Security</p>
         </div>
         <button
@@ -162,7 +162,7 @@ function TopBar() {
     <header className="monitor-topbar">
       <div>
         <p className="topbar-kicker">TRẠM KIỂM SOÁT RA/VÀO</p>
-        <h2>{pageTitles[location.pathname] || 'VehicleOps'}</h2>
+        <h2>{pageTitles[location.pathname] || 'NQ MOVEE'}</h2>
       </div>
       <div className="topbar-actions">
         <div className="status-pill">

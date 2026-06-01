@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, Camera, Car, Server, TrendingUp } from 'lucide-react';
-import { camerasAPI, statisticsAPI, vehiclesAPI } from '../services/api';
+import { Activity, AlertTriangle, Calendar, Camera, Car, Server, TrendingUp } from 'lucide-react';
+import { camerasAPI, statisticsAPI, vehicleEventsAPI } from '../services/api';
 import { formatVehicleType, formatVietnamDateTime, getVehicleCount } from '../utils/format';
 import {
   formatEventStatus,
@@ -10,14 +10,47 @@ import {
   getPlateConfidence,
   getVehicleConfidence,
 } from '../utils/vehicleEvent';
-import LoadingCamera from "../components/LoadingCamera";
+import Loading from "../components/Loading";
+
+const DASHBOARD_PERIODS = [
+  { value: "week", label: "Tuần này" },
+  { value: "month", label: "Tháng này" },
+];
+
+const formatDateParam = (date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+
+const getDashboardRange = (period) => {
+  const end = new Date();
+  const start = new Date(end);
+
+  if (period === "month") {
+    start.setDate(1);
+  } else {
+    const mondayOffset = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - mondayOffset);
+  }
+
+  return {
+    startDate: formatDateParam(start),
+    endDate: formatDateParam(end),
+  };
+};
 
 const Dashboard = () => {
+  const [period, setPeriod] = useState("week");
   const [summary, setSummary] = useState(null);
   const [dailyStats, setDailyStats] = useState([]);
   const [recentVehicles, setRecentVehicles] = useState([]);
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
+  const selectedRange = getDashboardRange(period);
+  const periodLabel = DASHBOARD_PERIODS.find((item) => item.value === period)?.label || "Tuần này";
   const formatCameraStatus = (status) => {
     if (status === 1) return "Còn hoạt động";
     if (status === 10) return "Đã xóa";
@@ -26,18 +59,27 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadDashboardData();
-    const interval = setInterval(loadDashboardData, 30000);
+    const interval = setInterval(loadDashboardData, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [period]);
 
 
 
   const loadDashboardData = async () => {
     try {
+      const rangeParams = {
+        start_date: selectedRange.startDate,
+        end_date: selectedRange.endDate,
+      };
+      const historyParams = {
+        start_date: `${selectedRange.startDate}T00:00:00`,
+        end_date: `${selectedRange.endDate}T23:59:59`,
+        limit: 8,
+      };
       const [summaryRes, dailyRes, vehiclesRes, camerasRes] = await Promise.all([
-        statisticsAPI.summary(),
-        statisticsAPI.daily({ limit: 7 }),
-        vehiclesAPI.list({ limit: 8 }),
+        statisticsAPI.summary(rangeParams),
+        statisticsAPI.daily(rangeParams),
+        vehicleEventsAPI.list(historyParams),
         camerasAPI.list(),
       ]);
       setSummary(summaryRes.data);
@@ -53,30 +95,49 @@ const Dashboard = () => {
 
   if (loading) {
     
-    return <LoadingCamera />;
+    return <Loading />;
   }
 
   return (
     <div className="ops-page">
+      <section className="dashboard-filter">
+        <div>
+          <Calendar className="w-5 h-5" />
+          <span>{selectedRange.startDate} - {selectedRange.endDate}</span>
+        </div>
+        <div className="segmented-control">
+          {DASHBOARD_PERIODS.map((item) => (
+            <button
+              key={item.value}
+              className={period === item.value ? "active" : ""}
+              type="button"
+              onClick={() => setPeriod(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="kpi-grid">
         <MetricCard
           icon={Car}
-          label="Hôm nay"
-          value={summary?.today || 0}
+          label={periodLabel}
+          value={summary?.range_total || 0}
           hint="Lượt phương tiện"
           tone="blue"
         />
         <MetricCard
           icon={TrendingUp}
-          label="Tuần này"
-          value={summary?.this_week || 0}
+          label="Hôm nay"
+          value={summary?.today || 0}
           hint="Tổng lưu lượng"
           tone="green"
         />
         <MetricCard
           icon={Activity}
-          label="Tháng này"
-          value={summary?.this_month || 0}
+          label={period === "month" ? "Tuần này" : "Tháng này"}
+          value={period === "month" ? summary?.this_week || 0 : summary?.this_month || 0}
           hint="Theo giờ Việt Nam"
           tone="amber"
         />
@@ -92,7 +153,7 @@ const Dashboard = () => {
       <section className="ops-grid">
         <div className="ops-panel span-2">
           <PanelHeader
-            title="Lưu lượng 7 ngày"
+            title={`Lưu lượng ${periodLabel.toLowerCase()}`}
             subtitle="Phân nhóm theo phạm vi phương tiện vận hành"
           />
           <div className="traffic-bars">
@@ -124,13 +185,13 @@ const Dashboard = () => {
           <div className="type-summary">
             <TypeBox
               label="Xe máy"
-              value={sumType(dailyStats, ["motorbike", "motorcycle"])}
+              value={sumType(dailyStats, ["motorbike"])}
             />
             <TypeBox label="Ô tô con" value={sumType(dailyStats, ["car"])} />
             <TypeBox label="Xe tải" value={sumType(dailyStats, ["truck"])} />
             <TypeBox
               label="Xe container"
-              value={sumType(dailyStats, ["container", "bus"])}
+              value={sumType(dailyStats, ["container"])}
             />
           </div>
         </div>
@@ -187,7 +248,7 @@ const Dashboard = () => {
                     <td>{vehicle.plate || "N/A"}</td>
                     <td>
                       <span className="badge info">
-                        {formatVehicleType(vehicle.vehicle_type)}
+                        {formatVehicleType(vehicle.vehicle_type_id ?? vehicle.vehicle_type)}
                       </span>
                     </td>
                     <td>Camera {vehicle.camera_id || "N/A"}</td>

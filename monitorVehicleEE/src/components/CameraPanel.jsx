@@ -202,7 +202,7 @@ function CameraPanel() {
 
         <input
           className="camera-source-input"
-          placeholder="Nguồn camera, ví dụ 27.mp4 hoặc rtsp://192.168.1.10:8554/cam1"
+          placeholder="Nguồn camera"
           value={form.source_path}
           onChange={(e) => handleFormChange("source_path", e.target.value)}
           required
@@ -400,7 +400,7 @@ function CameraView({ camera, onEdit, onDelete }) {
         )}
 
         {loading && (
-          <div className="camera-loading-overlay">
+          <div className="">
             <LoadingCamera />
           </div>
         )}

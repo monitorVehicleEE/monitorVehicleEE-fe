@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Check, ExternalLink, X } from "lucide-react";
+import { Camera, Check, ExternalLink, Pencil, X } from "lucide-react";
 
 import {
   buildCameraStreamUrl,
+  buildEventMediaUrl,
   getCameraStatus,
   startCamera,
   stopCamera,
@@ -11,12 +12,14 @@ import { camerasAPI, vehicleEventsAPI } from "../services/api";
 import { formatVehicleType, formatVietnamDateTime } from "../utils/format";
 import {
   formatEventType,
+  formatEventStatus,
   formatPercent,
   getEventTime,
   getPlateConfidence,
   getVehicleConfidence,
 } from "../utils/vehicleEvent";
 import LoadingCamera from "./LoadingCamera";
+import Loading from "./Loading";
 
 const cameraRoleLabels = {
   0: "Cổng vào",
@@ -25,6 +28,42 @@ const cameraRoleLabels = {
   ENTRY: "Cong vao",
   EXIT: "Cong ra",
   INTERNAL: "Noi bo",
+};
+
+const formatVehiclePlateTitle = (event) => {
+  const vehicleType = formatVehicleType(event?.vehicle_type_id ?? event?.vehicle_type);
+  const plate = event?.plate || "Chưa có biển số";
+  return `${vehicleType} - ${plate}`;
+};
+
+const EventImages = ({ event, onPreview }) => {
+  const vehicleImageUrl = buildEventMediaUrl(event?.image_path);
+  const plateImageUrl = buildEventMediaUrl(event?.plate_image_path);
+
+  if (!vehicleImageUrl && !plateImageUrl) return null;
+
+  return (
+    <div className="event-images">
+      {vehicleImageUrl && (
+        <button
+          className="event-image-button"
+          type="button"
+          onClick={() => onPreview?.(vehicleImageUrl, "Anh xe")}
+        >
+          <img src={vehicleImageUrl} alt={`Vehicle ${event?.id || ""}`} />
+        </button>
+      )}
+      {plateImageUrl && (
+        <button
+          className="event-image-button"
+          type="button"
+          onClick={() => onPreview?.(plateImageUrl, "Anh bien so")}
+        >
+          <img src={plateImageUrl} alt={`Plate ${event?.id || ""}`} />
+        </button>
+      )}
+    </div>
+  );
 };
 
 function LiveVideo() {
@@ -38,11 +77,13 @@ function LiveVideo() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingStream, setLoadingStream] = useState(false);
   const [error, setError] = useState("");
+  const [approvedEvents, setApprovedEvents] = useState([]);
   const [pendingEvents, setPendingEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [plateInput, setPlateInput] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   const getStreamWidth = useCallback(() => {
     return Math.max(480, Math.min(960, Math.round(screenWidth || 960)));
@@ -82,26 +123,38 @@ function LiveVideo() {
     }
   }, []);
 
-  const loadPendingEvents = useCallback(async () => {
+  const loadLiveFeed = useCallback(async () => {
     try {
-      const res = await vehicleEventsAPI.getPending();
-      const events = Array.isArray(res.data) ? res.data : [];
-      setPendingEvents(events);
+      const res = await vehicleEventsAPI.liveFeed();
+      const allApproved = Array.isArray(res.data?.approved) ? res.data.approved : [];
+      const allPending = Array.isArray(res.data?.pending) ? res.data.pending : [];
+      const selectedCameraId = selectedCamera?.id == null ? null : Number(selectedCamera.id);
+      const belongsToSelectedCamera = (event) => {
+        if (selectedCameraId == null) return true;
+        return Number(event.camera_id) === selectedCameraId;
+      };
+      const approved = allApproved.filter(belongsToSelectedCamera);
+      const pending = allPending.filter(belongsToSelectedCamera);
+
+      setApprovedEvents(approved);
+      setPendingEvents(pending);
       setSelectedEvent((current) => {
-        if (current && events.some((event) => event.id === current.id)) {
+        const mergedEvents = [...pending, ...approved];
+        if (current && mergedEvents.some((event) => event.id === current.id)) {
           return current;
         }
 
-        const firstEvent = events[0] || null;
+        const firstEvent = pending[0] || null;
         setPlateInput(firstEvent?.plate || "");
         return firstEvent;
       });
       setReviewError("");
     } catch (err) {
       console.error("Failed to load pending vehicle events:", err);
+      setApprovedEvents([]);
       setPendingEvents([]);
     }
-  }, []);
+  }, [selectedCamera]);
 
   const checkSelectedCameraStatus = useCallback(async () => {
     if (!selectedCamera) {
@@ -134,6 +187,11 @@ function LiveVideo() {
     setSelectedCamera(camera);
     setStreamUrl("");
     setCameraRunning(false);
+    setSelectedEvent(null);
+    setPlateInput("");
+    setReviewError("");
+    setPendingEvents([]);
+    setApprovedEvents([]);
   };
 
   const handleStart = async () => {
@@ -172,21 +230,38 @@ function LiveVideo() {
     setReviewError("");
   };
 
+  const handlePreviewImage = (src, title) => {
+    setPreviewImage({ src, title });
+  };
+
+  const handleCancelReview = () => {
+    setPlateInput(selectedEvent?.plate || "");
+    setReviewError("");
+    setSelectedEvent(null);
+  };
+
   const handleApprove = async () => {
     if (!selectedEvent) return;
 
     try {
       setReviewing(true);
       setReviewError("");
-      await vehicleEventsAPI.approve(selectedEvent.id, {
+      const payload = {
         plate: plateInput.trim().toUpperCase() || selectedEvent.plate,
-        vehicle_type: selectedEvent.vehicle_type,
+        vehicle_type_id: selectedEvent.vehicle_type_id,
         status: "MANUAL_APPROVED",
-      });
-      await loadPendingEvents();
+      };
+
+      if (selectedEvent.status === "PENDING") {
+        await vehicleEventsAPI.approve(selectedEvent.id, payload);
+      } else {
+        await vehicleEventsAPI.update(selectedEvent.id, payload);
+      }
+
+      await loadLiveFeed();
     } catch (err) {
       console.error("Failed to approve event:", err);
-      setReviewError("Duyet event that bai");
+      setReviewError("Duyệt thất bại");
     } finally {
       setReviewing(false);
     }
@@ -201,7 +276,7 @@ function LiveVideo() {
       await vehicleEventsAPI.reject(selectedEvent.id, {
         status: "REJECTED",
       });
-      await loadPendingEvents();
+      await loadLiveFeed();
     } catch (err) {
       console.error("Failed to reject event:", err);
       setReviewError("Tu choi event that bai");
@@ -210,13 +285,87 @@ function LiveVideo() {
     }
   };
 
+  const renderReviewPanel = ({ actionLabel = "Duyệt", showReject = true } = {}) => (
+    <div className="review-panel">
+      <div className="panel-header">
+        <div>
+          <h3>Chi tiet event</h3>
+          <p>#{selectedEvent.id}</p>
+        </div>
+      </div>
+
+      <EventImages event={selectedEvent} onPreview={handlePreviewImage} />
+
+      <label className="review-field">
+        <span>Bien so</span>
+        <input
+          value={plateInput}
+          onChange={(event) => setPlateInput(event.target.value)}
+          placeholder="Nhập biển số"
+        />
+      </label>
+
+      <div className="telemetry-grid">
+        <Telemetry
+          label="Loại xe"
+          value={formatVehicleType(selectedEvent.vehicle_type_id ?? selectedEvent.vehicle_type)}
+        />
+        <Telemetry
+          label="Độ tin cậy xe"
+          value={formatPercent(getVehicleConfidence(selectedEvent))}
+        />
+        <Telemetry
+          label="Độ tin cậy biển số"
+          value={formatPercent(getPlateConfidence(selectedEvent))}
+        />
+        <Telemetry label="Hướng " value={formatEventType(selectedEvent.event_type)} />
+      </div>
+
+      {reviewError && <div className="camera-error">{reviewError}</div>}
+
+      <div className="review-actions">
+        <button
+          className="camera-action-button start"
+          type="button"
+          onClick={handleApprove}
+          disabled={reviewing}
+        >
+          <Check className="w-4 h-4" />
+          {actionLabel}
+        </button>
+        <button
+          className="camera-action-button cancel"
+          type="button"
+          onClick={handleCancelReview}
+          disabled={reviewing}
+        >
+          Hủy
+        </button>
+        {showReject && (
+          <button
+            className="camera-action-button stop"
+            type="button"
+            onClick={handleReject}
+            disabled={reviewing}
+          >
+            <X className="w-4 h-4" />
+            Từ chối
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   useEffect(() => {
     loadCameras();
-    loadPendingEvents();
+  }, [loadCameras]);
 
-    const interval = setInterval(loadPendingEvents, 5000);
+  useEffect(() => {
+    loadLiveFeed();
+
+    const interval = setInterval(loadLiveFeed, 5000);
     return () => clearInterval(interval);
-  }, [loadCameras, loadPendingEvents]);
+  }, [loadLiveFeed]);
 
   useEffect(() => {
     const element = screenRef.current;
@@ -251,10 +400,13 @@ function LiveVideo() {
   if (loadingList) {
     return (
       <div className="page-loading">
-        <LoadingCamera />
+        <Loading />
       </div>
     );
   }
+
+  const selectedEventIsPending =
+    selectedEvent && pendingEvents.some((event) => event.id === selectedEvent.id);
 
   return (
     <div className="ops-page live-page">
@@ -348,106 +500,109 @@ function LiveVideo() {
               </div>
             </div>
 
-            <aside className="ops-panel live-side-panel">
+            <aside className="ops-panel live-side-panel pending-panel">
               <div className="panel-header">
                 <div>
                   <h3>Chờ duyệt</h3>
-
+                  <p>Cần nhân viên xác nhận</p>
                 </div>
               </div>
 
-              <div className="detection-feed">
-                {pendingEvents.length > 0 ? (
-                  pendingEvents.map((event) => (
-                    <button
-                      key={event.id}
-                      className={`detection-card ${selectedEvent?.id === event.id ? "active" : ""}`}
-                      type="button"
-                      onClick={() => handleSelectEvent(event)}
-                    >
-                      <div>
-                        <strong>{event.plate || "Chua co bien so"}</strong>
-                        <span>
-                          Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
-                        </span>
-                        <p>{formatVietnamDateTime(getEventTime(event))}</p>
-                      </div>
-                      <em>{formatPercent(getPlateConfidence(event) ?? getVehicleConfidence(event))}</em>
-                    </button>
-                  ))
-                ) : (
-                  <div className="empty-state">Không có xe chờ duyệt</div>
-                )}
-              </div>
-
-              {selectedEvent && (
-                <div className="review-panel">
-                  <div className="panel-header">
-                    <div>
-                      <h3>Chi tiet event</h3>
-                      <p>#{selectedEvent.id}</p>
-                    </div>
-                  </div>
-
-                  {selectedEvent.plate_image_path && (
-                    <img
-                      className="review-image"
-                      src={selectedEvent.plate_image_path}
-                      alt={`Plate ${selectedEvent.plate || selectedEvent.id}`}
-                    />
+              <div className={`pending-workspace ${selectedEventIsPending ? "reviewing" : ""}`}>
+                <div className="detection-feed pending-feed">
+                  {pendingEvents.length > 0 ? (
+                    pendingEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        className={`detection-card ${selectedEvent?.id === event.id ? "active" : ""}`}
+                        type="button"
+                        onClick={() => handleSelectEvent(event)}
+                      >
+                        <div>
+                          <strong>{formatVehiclePlateTitle(event)}</strong>
+                          <span>
+                            Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
+                          </span>
+                          <p>{formatVietnamDateTime(getEventTime(event))}</p>
+                        </div>
+                        <em>{formatPercent(getPlateConfidence(event) ?? getVehicleConfidence(event))}</em>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="empty-state compact">Không có xe chờ duyệt</div>
                   )}
-
-                  <label className="review-field">
-                    <span>Bien so</span>
-                    <input
-                      value={plateInput}
-                      onChange={(event) => setPlateInput(event.target.value)}
-                      placeholder="Nhap bien so"
-                    />
-                  </label>
-
-                  <div className="telemetry-grid">
-                    <Telemetry label="Loai xe" value={formatVehicleType(selectedEvent.vehicle_type)} />
-                    <Telemetry
-                      label="Vehicle"
-                      value={formatPercent(getVehicleConfidence(selectedEvent))}
-                    />
-                    <Telemetry
-                      label="Plate OCR"
-                      value={formatPercent(getPlateConfidence(selectedEvent))}
-                    />
-                    <Telemetry label="Huong" value={formatEventType(selectedEvent.event_type)} />
-                  </div>
-
-                  {reviewError && <div className="camera-error">{reviewError}</div>}
-
-                  <div className="review-actions">
-                    <button
-                      className="camera-action-button start"
-                      type="button"
-                      onClick={handleApprove}
-                      disabled={reviewing}
-                    >
-                      <Check className="w-4 h-4" />
-                      Duyet
-                    </button>
-                    <button
-                      className="camera-action-button stop"
-                      type="button"
-                      onClick={handleReject}
-                      disabled={reviewing}
-                    >
-                      <X className="w-4 h-4" />
-                      Tu choi
-                    </button>
-                  </div>
                 </div>
-              )}
+
+                {selectedEventIsPending && renderReviewPanel()}
+              </div>
             </aside>
+          </section>
+
+          <section className="ops-panel approved-panel">
+            <div className="panel-header">
+              <div>
+                <h3>Xe dang vao</h3>
+                <p>Tự động và vừa duyệt gần đây</p>
+              </div>
+            </div>
+
+            <div className="approved-feed">
+              {approvedEvents.length > 0 ? (
+                approvedEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className={`detection-card approved ${
+                      event.image_path || event.plate_image_path ? "has-media" : ""
+                    }`}
+                  >
+                    <EventImages event={event} onPreview={handlePreviewImage} />
+                    <div>
+                      <strong>{formatVehiclePlateTitle(event)}</strong>
+                      <span>
+                        Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
+                      </span>
+                      <p>{formatVietnamDateTime(getEventTime(event))}</p>
+                    </div>
+                    <div className="approved-actions">
+                      <em>{formatEventStatus(event.status)}</em>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        onClick={() => handleSelectEvent(event)}
+                        aria-label="Sua event"
+                        title="Sua"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {selectedEvent?.id === event.id && (
+                      <div className="approved-edit-panel">
+                        {renderReviewPanel({ actionLabel: "Lưu", showReject: false })}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state compact">Chưa có xe vừa duyệt</div>
+              )}
+            </div>
           </section>
         </>
       ) : (
         <div className="empty-state">Chua co camera nao dang hoat dong</div>
+      )}
+
+      {previewImage && (
+        <button
+          className="image-preview-backdrop"
+          type="button"
+          onClick={() => setPreviewImage(null)}
+        >
+          <span className="image-preview-dialog">
+            <img src={previewImage.src} alt={previewImage.title} />
+            <span>{previewImage.title}</span>
+          </span>
+        </button>
       )}
     </div>
   );

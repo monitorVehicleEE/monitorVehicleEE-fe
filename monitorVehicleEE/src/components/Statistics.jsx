@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { statisticsAPI } from '../services/api';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Calendar } from 'lucide-react';
@@ -14,12 +14,10 @@ const Statistics = () => {
   const [endDate, setEndDate] = useState(getVietnamDateString(0));
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadStatistics();
-  }, [startDate, endDate]);
-
-  const loadStatistics = async () => {
-    setLoading(true);
+  const loadStatistics = useCallback(async ({ showLoading = true } = {}) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const [dailyRes, hourlyRes, typeRes] = await Promise.all([
         statisticsAPI.daily({ start_date: startDate, end_date: endDate }),
@@ -35,7 +33,17 @@ const Statistics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    loadStatistics();
+
+    const interval = setInterval(() => {
+      loadStatistics({ showLoading: false });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loadStatistics]);
 
   if (loading) {
     return <div className="p-6">Đang tải thống kê...</div>;
@@ -119,7 +127,7 @@ const Statistics = () => {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={(entry) => `${formatVehicleType(entry.vehicle_type)}: ${entry.count}`}
+                label={(entry) => `${formatVehicleType(entry.vehicle_type_id ?? entry.vehicle_type)}: ${entry.count}`}
               >
                 {typeStats.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -140,7 +148,7 @@ const Statistics = () => {
                     className="w-4 h-4 rounded"
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
-                  <span className="font-medium">{formatVehicleType(stat.vehicle_type)}</span>
+                  <span className="font-medium">{formatVehicleType(stat.vehicle_type_id ?? stat.vehicle_type)}</span>
                 </div>
                 <span className="text-2xl font-bold">{stat.count}</span>
               </div>

@@ -1,0 +1,9 @@
+{
+  "appId": "com.nqmovee.app",
+  "appName": "NQMOvee",
+  "webDir": "dist",
+  "server": {
+    "cleartext": true,
+    "androidScheme": "http"
+  }
+}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { vehiclesAPI, camerasAPI } from '../services/api';
+import { camerasAPI, vehicleEventsAPI } from '../services/api';
+import { buildEventMediaUrl } from '../api/camAPI';
 import { Download, Filter } from 'lucide-react';
 import { formatVehicleType, formatVietnamDateTime, VEHICLE_TYPES } from '../utils/format';
 import {
@@ -11,17 +12,97 @@ import {
   getVehicleConfidence,
 } from '../utils/vehicleEvent';
 
+const vehicleTypeFilterAliases = {
+  motorbike: ["motorbike", "motorcycle", "xm", "1"],
+  car: ["car", "oto", "2"],
+  truck: ["truck", "xt", "xe-tai", "3"],
+  container: ["container", "xctn", "xe-container", "4"],
+};
+
+const getVehicleTypeValue = (event) => event.vehicle_type_id ?? event.vehicle_type;
+
+const matchesVehicleType = (event, vehicleType) => {
+  if (!vehicleType) return true;
+
+  const eventType = String(getVehicleTypeValue(event) || "").trim().toLowerCase();
+  const aliases = vehicleTypeFilterAliases[vehicleType] || [vehicleType];
+  return aliases.includes(eventType);
+};
+
+const isHistoryEvent = (event) => event.status !== "PENDING";
+
+const filterVehicleEvents = (events, params) => {
+  const startDate = params.start_date ? new Date(params.start_date) : null;
+  const endDate = params.end_date ? new Date(params.end_date) : null;
+  const skip = Number(params.skip || 0);
+  const limit = Number(params.limit || events.length);
+
+  return events
+    .filter((event) => {
+      const eventTime = getEventTime(event);
+      const eventDate = eventTime ? new Date(eventTime) : null;
+
+      return (
+        isHistoryEvent(event) &&
+        (!params.camera_id || Number(event.camera_id) === Number(params.camera_id)) &&
+        matchesVehicleType(event, params.vehicle_type) &&
+        (!startDate || (eventDate && eventDate >= startDate)) &&
+        (!endDate || (eventDate && eventDate <= endDate))
+      );
+    })
+    .sort((a, b) => new Date(getEventTime(b) || 0) - new Date(getEventTime(a) || 0))
+    .slice(skip, skip + limit);
+};
+
+const loadVehicleEvents = async (params) => {
+  try {
+    const response = await vehicleEventsAPI.list(params);
+    const events = Array.isArray(response.data) ? response.data : response.data?.items || [];
+    return filterVehicleEvents(events, params);
+  } catch {
+    const response = await vehicleEventsAPI.liveFeed();
+    const approved = Array.isArray(response.data?.approved) ? response.data.approved : [];
+    return filterVehicleEvents(approved, params);
+  }
+};
+
+const HistoryImage = ({ src, alt, onPreview }) => {
+  const imageUrl = buildEventMediaUrl(src);
+
+  if (!imageUrl) {
+    return <span className="text-sm text-gray-400">N/A</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview(imageUrl, alt)}
+      className="border border-gray-200 rounded overflow-hidden bg-gray-50"
+      style={{ width: 88, height: 56 }}
+      title={alt}
+    >
+      <img
+        src={imageUrl}
+        alt={alt}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+    </button>
+  );
+};
+
 const History = () => {
   const [vehicles, setVehicles] = useState([]);
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [previewImage, setPreviewImage] = useState(null);
   const [filters, setFilters] = useState({
     camera_id: '',
     vehicle_type: '',
     start_date: '',
     end_date: '',
     skip: 0,
-    limit: 50,
+    limit: '',
   });
 
   useEffect(() => {
@@ -43,8 +124,8 @@ const History = () => {
     try {
       // eslint-disable-next-line no-unused-vars
       const params = Object.fromEntries(Object.entries(filters).filter(([_, value]) => value !== ''));
-      const response = await vehiclesAPI.list(params);
-      setVehicles(response.data);
+      const response = await loadVehicleEvents(params);
+      setVehicles(response);
     } catch (error) {
       console.error('Failed to load vehicles:', error);
     } finally {
@@ -60,6 +141,8 @@ const History = () => {
     const headers = [
       "ID",
       "Camera",
+      "Anh xe",
+      "Anh bien so",
       "Loại Xe",
       "Biển số",
       "Thời gian",
@@ -71,7 +154,9 @@ const History = () => {
     const rows = vehicles.map(v => [
       v.id,
       v.camera_id,
-      formatVehicleType(v.vehicle_type),
+      buildEventMediaUrl(v.image_path),
+      buildEventMediaUrl(v.plate_image_path),
+      formatVehicleType(v.vehicle_type_id ?? v.vehicle_type),
       v.plate || '',
       formatVietnamDateTime(getEventTime(v)),
       formatEventType(v.event_type || v.direction),
@@ -131,12 +216,14 @@ const History = () => {
         {loading ? (
           <div className="text-center py-12">Đang tải...</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Camera</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ảnh xe</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ảnh biển số</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại xe</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Biển số</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian</th>
@@ -152,8 +239,22 @@ const History = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vehicle.id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Camera {vehicle.camera_id || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <HistoryImage
+                        src={vehicle.image_path}
+                        alt={`Ảnh xe #${vehicle.id}`}
+                        onPreview={(src, title) => setPreviewImage({ src, title })}
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <HistoryImage
+                        src={vehicle.plate_image_path}
+                        alt={`Ảnh biển số #${vehicle.id}`}
+                        onPreview={(src, title) => setPreviewImage({ src, title })}
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {formatVehicleType(vehicle.vehicle_type)}
+                        {formatVehicleType(vehicle.vehicle_type_id ?? vehicle.vehicle_type)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{vehicle.plate || 'N/A'}</td>
@@ -173,6 +274,19 @@ const History = () => {
           </div>
         )}
       </div>
+
+      {previewImage && (
+        <button
+          className="image-preview-backdrop"
+          type="button"
+          onClick={() => setPreviewImage(null)}
+        >
+          <span className="image-preview-dialog">
+            <img src={previewImage.src} alt={previewImage.title} />
+            <span>{previewImage.title}</span>
+          </span>
+        </button>
+      )}
     </div>
   );
 };
