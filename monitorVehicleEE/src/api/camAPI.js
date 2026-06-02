@@ -8,14 +8,16 @@ export const getCameraStatus = async (camId) => {
   return res.data;
 };
 
-export const startCamera = async (camId) => {
-  const res = await axios.post(`${API_URL}/start-stream/${camId}`);
+export const startCamera = async (camId, sendEvent = true) => {
+  const eventFlag = sendEvent ? "true" : "false";
+  const res = await axios.post(`${API_URL}/start-stream/${camId}/${eventFlag}`);
 
   return res.data;
 };
 
-export const stopCamera = async (camId) => {
-  const res = await axios.post(`${API_URL}/stop-stream/${camId}`);
+export const stopCamera = async (camId, sendEvent = true) => {
+  const eventFlag = sendEvent ? "true" : "false";
+  const res = await axios.post(`${API_URL}/stop-stream/${camId}/${eventFlag}`);
 
   return res.data;
 };

@@ -3,6 +3,7 @@ import { buildEventMediaUrl } from '../api/camAPI';
 import { vehicleEventsAPI } from '../services/api';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { formatVehicleType, formatVietnamDateTime } from '../utils/format';
+import Loading from './Loading';
 import {
   formatEventStatus,
   formatEventType,
@@ -83,6 +84,10 @@ const Search = () => {
     setSearched(false);
     setPreviewImage(null);
   };
+
+  if (loading) {
+    return <Loading />;
+  }
 
   return (
     <div className="p-6">

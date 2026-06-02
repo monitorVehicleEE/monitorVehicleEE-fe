@@ -5,3 +5,10 @@
 - npm install lucide-react
 - npm install recharts
 - npm install hls.js
+- npm install @capacitor/core @capacitor/cli
+- npm install @capacitor/android@6
+- npx cap add android
+- npm run build
+- npx cap sync android
+- npx cap open android
+- npm run dev -- --host

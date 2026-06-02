@@ -73,11 +73,11 @@ const normalizeVehicleEventPayload = (data) => ({
 // Vehicle Events API
 export const vehicleEventsAPI = {
   list: (params) => api.get('/vehicle-events', { params }),
-  liveFeed: () => api.get('/vehicle-events/live-feed'),
+  liveFeed: (params) => api.get('/vehicle-events/live-feed', { params }),
   getByPlate: (plate) => api.get(`/vehicle-events/plate/${plate}`),
   getLatestByPlate: (plate) => api.get(`/vehicle-events/plate/${plate}/latest`),
   getByCamera: (cameraId) => api.get(`/statistics/camera/${cameraId}`),
-  getPending: () => api.get('/vehicle-events/pending'),
+  getPending: (params) => api.get('/vehicle-events/pending', { params }),
   update: (id, data) => api.put(`/vehicle-events/${id}`, data),
   approve: (id, data) => api.put(`/vehicle-events/${id}/approve`, data),
   reject: (id, data) => api.put(`/vehicle-events/${id}/reject`, data),
@@ -86,6 +86,7 @@ export const vehicleEventsAPI = {
 
 // Vehicle Sessions API
 export const vehicleSessionsAPI = {
+  list: (params) => api.get('/vehicle-sessions', { params }),
   getOpen: (plate) => api.get(`/vehicle-sessions/open/${plate}`),
   create: (data) => api.post('/vehicle-sessions', data),
   close: (plate, data) => api.put(`/vehicle-sessions/${plate}/close`, data),

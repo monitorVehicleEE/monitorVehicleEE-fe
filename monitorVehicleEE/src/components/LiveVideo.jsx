@@ -21,6 +21,8 @@ import {
 import LoadingCamera from "./LoadingCamera";
 import Loading from "./Loading";
 
+const LIVE_FEED_POLL_MS = 1000;
+
 const cameraRoleLabels = {
   0: "Cổng vào",
   1: "Cổng ra",
@@ -69,6 +71,7 @@ const EventImages = ({ event, onPreview }) => {
 function LiveVideo() {
   const screenRef = useRef(null);
   const streamWidthRef = useRef(960);
+  const selectedCameraIdRef = useRef(null);
   const [cameras, setCameras] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [streamUrl, setStreamUrl] = useState("");
@@ -84,6 +87,7 @@ function LiveVideo() {
   const [reviewError, setReviewError] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [streamOrientation, setStreamOrientation] = useState("portrait");
 
   const getStreamWidth = useCallback(() => {
     return Math.max(480, Math.min(960, Math.round(screenWidth || 960)));
@@ -98,6 +102,20 @@ function LiveVideo() {
     },
     [getStreamWidth, selectedCamera],
   );
+
+  const selectedCameraRole = selectedCamera?.camera_role;
+  const selectedCameraEventType =
+    selectedCameraRole === 0 || selectedCameraRole === "0" || selectedCameraRole === "ENTRY"
+      ? "IN"
+      : selectedCameraRole === 1 || selectedCameraRole === "1" || selectedCameraRole === "EXIT"
+        ? "OUT"
+        : "DETECTED";
+  const approvedFeedTitle =
+    selectedCameraEventType === "OUT"
+      ? "Xe đang ra"
+      : selectedCameraEventType === "IN"
+        ? "Xe đang vào"
+        : "Xe phát hiện";
 
   const loadCameras = useCallback(async () => {
     try {
@@ -117,24 +135,26 @@ function LiveVideo() {
       });
     } catch (err) {
       console.error("Failed to load cameras:", err);
-      setError("Khong the tai danh sach camera");
+      setError("Không thể tải danh sách camera");
     } finally {
       setLoadingList(false);
     }
   }, []);
 
   const loadLiveFeed = useCallback(async () => {
+    const selectedCameraId = selectedCamera?.id == null ? null : Number(selectedCamera.id);
+
     try {
-      const res = await vehicleEventsAPI.liveFeed();
-      const allApproved = Array.isArray(res.data?.approved) ? res.data.approved : [];
-      const allPending = Array.isArray(res.data?.pending) ? res.data.pending : [];
-      const selectedCameraId = selectedCamera?.id == null ? null : Number(selectedCamera.id);
-      const belongsToSelectedCamera = (event) => {
-        if (selectedCameraId == null) return true;
-        return Number(event.camera_id) === selectedCameraId;
-      };
-      const approved = allApproved.filter(belongsToSelectedCamera);
-      const pending = allPending.filter(belongsToSelectedCamera);
+      const res = await vehicleEventsAPI.liveFeed(
+        selectedCameraId == null ? undefined : { camera_id: selectedCameraId },
+      );
+
+      if (selectedCameraIdRef.current !== selectedCameraId) {
+        return;
+      }
+
+      const approved = Array.isArray(res.data?.approved) ? res.data.approved : [];
+      const pending = Array.isArray(res.data?.pending) ? res.data.pending : [];
 
       setApprovedEvents(approved);
       setPendingEvents(pending);
@@ -150,6 +170,10 @@ function LiveVideo() {
       });
       setReviewError("");
     } catch (err) {
+      if (selectedCameraIdRef.current !== selectedCameraId) {
+        return;
+      }
+
       console.error("Failed to load pending vehicle events:", err);
       setApprovedEvents([]);
       setPendingEvents([]);
@@ -166,7 +190,7 @@ function LiveVideo() {
     try {
       const res = await getCameraStatus(selectedCamera.id);
 
-      if (res.running) {
+      if (res.running && res.send_vehicle_events) {
         setCameraRunning(true);
         setLoadingStream(true);
         setStreamUrl(buildSelectedStreamUrl(selectedCamera));
@@ -184,6 +208,7 @@ function LiveVideo() {
   }, [buildSelectedStreamUrl, selectedCamera]);
 
   const handleSelectCamera = (camera) => {
+    selectedCameraIdRef.current = camera?.id == null ? null : Number(camera.id);
     setSelectedCamera(camera);
     setStreamUrl("");
     setCameraRunning(false);
@@ -199,7 +224,7 @@ function LiveVideo() {
 
     try {
       setLoadingStream(true);
-      await startCamera(selectedCamera.id);
+      await startCamera(selectedCamera.id, true);
       setCameraRunning(true);
       setStreamUrl(buildSelectedStreamUrl(selectedCamera));
     } catch (err) {
@@ -214,7 +239,7 @@ function LiveVideo() {
 
     try {
       setLoadingStream(true);
-      await stopCamera(selectedCamera.id);
+      await stopCamera(selectedCamera.id, true);
       setCameraRunning(false);
       setStreamUrl("");
     } catch (err) {
@@ -222,6 +247,12 @@ function LiveVideo() {
     } finally {
       setLoadingStream(false);
     }
+  };
+
+  const handleStreamLoad = (event) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    setStreamOrientation(naturalWidth >= naturalHeight ? "landscape" : "portrait");
+    setLoadingStream(false);
   };
 
   const handleSelectEvent = (event) => {
@@ -361,9 +392,13 @@ function LiveVideo() {
   }, [loadCameras]);
 
   useEffect(() => {
+    selectedCameraIdRef.current = selectedCamera?.id == null ? null : Number(selectedCamera.id);
+  }, [selectedCamera]);
+
+  useEffect(() => {
     loadLiveFeed();
 
-    const interval = setInterval(loadLiveFeed, 5000);
+    const interval = setInterval(loadLiveFeed, LIVE_FEED_POLL_MS);
     return () => clearInterval(interval);
   }, [loadLiveFeed]);
 
@@ -398,11 +433,14 @@ function LiveVideo() {
   }, [buildSelectedStreamUrl, cameraRunning, getStreamWidth, streamUrl]);
 
   if (loadingList) {
+    // return (
+    //   <div className="page-loading">
+    //     <Loading />
+    //   </div>
+    // );
     return (
-      <div className="page-loading">
-        <Loading />
-      </div>
-    );
+      <Loading/>
+    )
   }
 
   const selectedEventIsPending =
@@ -480,9 +518,10 @@ function LiveVideo() {
               <div className={`camera-monitor-screen ${streamUrl ? "streaming" : ""}`} ref={screenRef}>
                 {streamUrl ? (
                   <img
+                    className={`stream-${streamOrientation}`}
                     src={streamUrl}
                     alt={selectedCamera?.name || "Camera"}
-                    onLoad={() => setLoadingStream(false)}
+                    onLoad={handleStreamLoad}
                     onError={() => setLoadingStream(false)}
                   />
                 ) : (
@@ -541,7 +580,7 @@ function LiveVideo() {
           <section className="ops-panel approved-panel">
             <div className="panel-header">
               <div>
-                <h3>Xe dang vao</h3>
+                <h3>{approvedFeedTitle}</h3>
                 <p>Tự động và vừa duyệt gần đây</p>
               </div>
             </div>

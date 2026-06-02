@@ -6,6 +6,7 @@ import {
   startCamera,
   stopCamera,
 } from "../api/camAPI";
+import Loading from "./Loading";
 import LoadingCamera from "./LoadingCamera";
 
 const emptyCameraForm = {
@@ -153,11 +154,7 @@ function CameraPanel() {
   }, [loadCameras]);
 
   if (loadingList) {
-    return (
-      <div className="page-loading">
-        <LoadingCamera />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -257,6 +254,7 @@ function CameraView({ camera, onEdit, onDelete }) {
   const [screenWidth, setScreenWidth] = useState(640);
   const [loading, setLoading] = useState(false);
   const [cameraRunning, setCameraRunning] = useState(false);
+  const [streamOrientation, setStreamOrientation] = useState("portrait");
 
   const getStreamWidth = useCallback(() => {
     return Math.max(320, Math.min(640, Math.round(screenWidth || 640)));
@@ -310,7 +308,7 @@ function CameraView({ camera, onEdit, onDelete }) {
   const handleStart = async () => {
     try {
       setLoading(true);
-      await startCamera(camera.id);
+      await startCamera(camera.id, false);
       setCameraRunning(true);
       setStreamUrl(buildStreamUrl());
     } catch (err) {
@@ -323,7 +321,7 @@ function CameraView({ camera, onEdit, onDelete }) {
   const handleStop = async () => {
     try {
       setLoading(true);
-      await stopCamera(camera.id);
+      await stopCamera(camera.id, false);
       setCameraRunning(false);
       setStreamUrl("");
     } catch (err) {
@@ -331,6 +329,12 @@ function CameraView({ camera, onEdit, onDelete }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStreamLoad = (event) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    setStreamOrientation(naturalWidth >= naturalHeight ? "landscape" : "portrait");
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -390,9 +394,10 @@ function CameraView({ camera, onEdit, onDelete }) {
       <div className={`camera-monitor-screen ${streamUrl ? "streaming" : ""}`} ref={screenRef}>
         {streamUrl ? (
           <img
+            className={`stream-${streamOrientation}`}
             src={streamUrl}
             alt={camera.name || `Camera ${camera.id}`}
-            onLoad={() => setLoading(false)}
+            onLoad={handleStreamLoad}
             onError={() => setLoading(false)}
           />
         ) : (

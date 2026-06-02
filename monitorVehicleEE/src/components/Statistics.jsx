@@ -1,16 +1,39 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Activity,
+  BarChart3,
+  Calendar,
+  Camera,
+  Car,
+} from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+
 import { statisticsAPI } from '../services/api';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Calendar } from 'lucide-react';
 import { formatVehicleType, getVietnamDateString } from '../utils/format';
+import Loading from './Loading';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const Statistics = () => {
+  const [summary, setSummary] = useState(null);
   const [dailyStats, setDailyStats] = useState([]);
   const [hourlyStats, setHourlyStats] = useState([]);
   const [typeStats, setTypeStats] = useState([]);
-  const [startDate, setStartDate] = useState(getVietnamDateString(-7));
+  const [startDate, setStartDate] = useState(getVietnamDateString(-6));
   const [endDate, setEndDate] = useState(getVietnamDateString(0));
   const [loading, setLoading] = useState(true);
 
@@ -18,13 +41,16 @@ const Statistics = () => {
     if (showLoading) {
       setLoading(true);
     }
+
     try {
-      const [dailyRes, hourlyRes, typeRes] = await Promise.all([
+      const [summaryRes, dailyRes, hourlyRes, typeRes] = await Promise.all([
+        statisticsAPI.summary(),
         statisticsAPI.daily({ start_date: startDate, end_date: endDate }),
         statisticsAPI.hourly({ target_date: endDate }),
-        statisticsAPI.byType({ start_date: startDate, end_date: endDate })
+        statisticsAPI.byType({ start_date: startDate, end_date: endDate }),
       ]);
 
+      setSummary(summaryRes.data);
       setDailyStats(dailyRes.data);
       setHourlyStats(hourlyRes.data);
       setTypeStats(typeRes.data);
@@ -46,14 +72,44 @@ const Statistics = () => {
   }, [loadStatistics]);
 
   if (loading) {
-    return <div className="p-6">Đang tải thống kê...</div>;
+    return <Loading />;
   }
 
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-6">Thống kê</h1>
 
-      {/* Date Range Selector */}
+      <section className="kpi-grid mb-6">
+        <StatCard
+          icon={Activity}
+          label="Hôm nay"
+          value={summary?.today || 0}
+          hint="Tổng lượt trong ngày"
+          tone="blue"
+        />
+        <StatCard
+          icon={Car}
+          label="Tuần này"
+          value={summary?.this_week || 0}
+          hint="Tính từ thứ hai"
+          tone="green"
+        />
+        <StatCard
+          icon={BarChart3}
+          label="Tháng này"
+          value={summary?.this_month || 0}
+          hint="Theo giờ Việt Nam"
+          tone="amber"
+        />
+        <StatCard
+          icon={Camera}
+          label="Camera hoạt động"
+          value={summary?.active_cameras || 0}
+          hint="Không tính camera đã xóa"
+          tone="red"
+        />
+      </section>
+
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
@@ -62,7 +118,7 @@ const Statistics = () => {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(event) => setStartDate(event.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg"
             />
           </div>
@@ -71,20 +127,20 @@ const Statistics = () => {
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(event) => setEndDate(event.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg"
             />
           </div>
           <button
-            onClick={loadStatistics}
+            type="button"
+            onClick={() => loadStatistics()}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           >
-            Cập nhật
+            Cập nhật biểu đồ
           </button>
         </div>
       </div>
 
-      {/* Daily Statistics Chart */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Thống kê theo ngày</h2>
         <ResponsiveContainer width="100%" height={300}>
@@ -94,12 +150,17 @@ const Statistics = () => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="total" stroke="#8884d8" name="Tổng số xe" strokeWidth={2} />
+            <Line
+              type="monotone"
+              dataKey="total"
+              stroke="#8884d8"
+              name="Tổng số xe"
+              strokeWidth={2}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Hourly Statistics Chart */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Thống kê theo giờ (ngày {endDate})</h2>
         <ResponsiveContainer width="100%" height={300}>
@@ -114,7 +175,6 @@ const Statistics = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* Vehicle Type Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">Phân bố theo loại xe</h2>
@@ -127,10 +187,12 @@ const Statistics = () => {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={(entry) => `${formatVehicleType(entry.vehicle_type_id ?? entry.vehicle_type)}: ${entry.count}`}
+                label={(entry) =>
+                  `${formatVehicleType(entry.vehicle_type_id ?? entry.vehicle_type)}: ${entry.count}`
+                }
               >
                 {typeStats.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`${entry.vehicle_type_id || entry.vehicle_type}-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
@@ -142,13 +204,15 @@ const Statistics = () => {
           <h2 className="text-xl font-semibold mb-4">Chi tiết theo loại xe</h2>
           <div className="space-y-3">
             {typeStats.map((stat, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={`${stat.vehicle_type_id || stat.vehicle_type}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div
                     className="w-4 h-4 rounded"
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
-                  <span className="font-medium">{formatVehicleType(stat.vehicle_type_id ?? stat.vehicle_type)}</span>
+                  <span className="font-medium">
+                    {formatVehicleType(stat.vehicle_type_id ?? stat.vehicle_type)}
+                  </span>
                 </div>
                 <span className="text-2xl font-bold">{stat.count}</span>
               </div>
@@ -159,5 +223,18 @@ const Statistics = () => {
     </div>
   );
 };
+
+const StatCard = ({ icon, label, value, hint, tone }) => (
+  <div className={`metric-card ${tone}`}>
+    <div className="metric-icon">
+      {React.createElement(icon, { className: 'w-6 h-6' })}
+    </div>
+    <div>
+      <p>{label}</p>
+      <strong>{value}</strong>
+      <span>{hint}</span>
+    </div>
+  </div>
+);
 
 export default Statistics;

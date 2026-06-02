@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, AlertTriangle, Calendar, Camera, Car, Server, TrendingUp } from 'lucide-react';
+
 import { camerasAPI, statisticsAPI, vehicleEventsAPI } from '../services/api';
 import { formatVehicleType, formatVietnamDateTime, getVehicleCount } from '../utils/format';
 import {
@@ -10,26 +11,29 @@ import {
   getPlateConfidence,
   getVehicleConfidence,
 } from '../utils/vehicleEvent';
-import Loading from "../components/Loading";
+import Loading from './Loading';
 
 const DASHBOARD_PERIODS = [
-  { value: "week", label: "Tuần này" },
-  { value: "month", label: "Tháng này" },
+  { value: 'week', label: 'Tuần này' },
+  { value: 'month', label: 'Tháng này' },
+  { value: 'year', label: 'Năm này' },
 ];
 
 const formatDateParam = (date) =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(date);
 
 const getDashboardRange = (period) => {
   const end = new Date();
   const start = new Date(end);
 
-  if (period === "month") {
+  if (period === 'year') {
+    start.setMonth(0, 1);
+  } else if (period === 'month') {
     start.setDate(1);
   } else {
     const mondayOffset = (start.getDay() + 6) % 7;
@@ -43,27 +47,15 @@ const getDashboardRange = (period) => {
 };
 
 const Dashboard = () => {
-  const [period, setPeriod] = useState("week");
+  const [period, setPeriod] = useState('week');
   const [summary, setSummary] = useState(null);
   const [dailyStats, setDailyStats] = useState([]);
   const [recentVehicles, setRecentVehicles] = useState([]);
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const selectedRange = getDashboardRange(period);
-  const periodLabel = DASHBOARD_PERIODS.find((item) => item.value === period)?.label || "Tuần này";
-  const formatCameraStatus = (status) => {
-    if (status === 1) return "Còn hoạt động";
-    if (status === 10) return "Đã xóa";
-    return "Không xác định";
-  };
-
-  useEffect(() => {
-    loadDashboardData();
-    const interval = setInterval(loadDashboardData, 5000);
-    return () => clearInterval(interval);
-  }, [period]);
-
-
+  const periodLabel =
+    DASHBOARD_PERIODS.find((item) => item.value === period)?.label || 'Tuần này';
 
   const loadDashboardData = async () => {
     try {
@@ -78,14 +70,21 @@ const Dashboard = () => {
       };
       const [summaryRes, dailyRes, vehiclesRes, camerasRes] = await Promise.all([
         statisticsAPI.summary(rangeParams),
-        statisticsAPI.daily(rangeParams),
+        statisticsAPI.daily({
+          ...rangeParams,
+          group_by: period === 'year' ? 'month' : 'day',
+        }),
         vehicleEventsAPI.list(historyParams),
         camerasAPI.list(),
       ]);
+      const activeCameras = Array.isArray(camerasRes.data)
+        ? camerasRes.data.filter((camera) => camera.status === 1)
+        : [];
+
       setSummary(summaryRes.data);
       setDailyStats(dailyRes.data);
       setRecentVehicles(vehiclesRes.data);
-      setCameras(camerasRes.data);
+      setCameras(activeCameras);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -93,8 +92,14 @@ const Dashboard = () => {
     }
   };
 
+  useEffect(() => {
+    loadDashboardData();
+    const interval = setInterval(loadDashboardData, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
   if (loading) {
-    
     return <Loading />;
   }
 
@@ -109,7 +114,7 @@ const Dashboard = () => {
           {DASHBOARD_PERIODS.map((item) => (
             <button
               key={item.value}
-              className={period === item.value ? "active" : ""}
+              className={period === item.value ? 'active' : ''}
               type="button"
               onClick={() => setPeriod(item.value)}
             >
@@ -121,31 +126,31 @@ const Dashboard = () => {
 
       <section className="kpi-grid">
         <MetricCard
-          icon={Car}
-          label={periodLabel}
-          value={summary?.range_total || 0}
-          hint="Lượt phương tiện"
-          tone="blue"
-        />
-        <MetricCard
           icon={TrendingUp}
           label="Hôm nay"
           value={summary?.today || 0}
           hint="Tổng lưu lượng"
+          tone="blue"
+        />
+        <MetricCard
+          icon={Car}
+          label="Tuần này"
+          value={summary?.this_week || 0}
+          hint="Tính từ thứ hai"
           tone="green"
         />
         <MetricCard
           icon={Activity}
-          label={period === "month" ? "Tuần này" : "Tháng này"}
-          value={period === "month" ? summary?.this_week || 0 : summary?.this_month || 0}
+          label="Tháng này"
+          value={summary?.this_month || 0}
           hint="Theo giờ Việt Nam"
           tone="amber"
         />
         <MetricCard
           icon={Camera}
           label="Camera hoạt động"
-          value={`${summary?.active_cameras || 0}/${summary?.total_cameras || 0}`}
-          hint="Nguồn giám sát"
+          value={cameras.length}
+          hint="Không tính camera đã xóa"
           tone="red"
         />
       </section>
@@ -159,19 +164,14 @@ const Dashboard = () => {
           <div className="traffic-bars">
             {dailyStats.length > 0 ? (
               dailyStats.map((stat) => {
-                const max = Math.max(
-                  ...dailyStats.map((item) => item.total),
-                  1,
-                );
+                const max = Math.max(...dailyStats.map((item) => item.total), 1);
                 return (
                   <div className="traffic-row" key={stat.date}>
                     <div className="traffic-date">{stat.date}</div>
                     <div className="traffic-track">
                       <div
                         className="traffic-fill"
-                        style={{
-                          width: `${Math.max(4, (stat.total / max) * 100)}%`,
-                        }}
+                        style={{ width: `${Math.max(4, (stat.total / max) * 100)}%` }}
                       />
                     </div>
                     <div className="traffic-total">{stat.total}</div>
@@ -183,41 +183,35 @@ const Dashboard = () => {
             )}
           </div>
           <div className="type-summary">
-            <TypeBox
-              label="Xe máy"
-              value={sumType(dailyStats, ["motorbike"])}
-            />
-            <TypeBox label="Ô tô con" value={sumType(dailyStats, ["car"])} />
-            <TypeBox label="Xe tải" value={sumType(dailyStats, ["truck"])} />
-            <TypeBox
-              label="Xe container"
-              value={sumType(dailyStats, ["container"])}
-            />
+            <TypeBox label="Xe máy" value={sumType(dailyStats, ['motorbike'])} />
+            <TypeBox label="Ô tô con" value={sumType(dailyStats, ['car'])} />
+            <TypeBox label="Xe tải" value={sumType(dailyStats, ['truck'])} />
+            <TypeBox label="Xe container" value={sumType(dailyStats, ['container'])} />
           </div>
         </div>
 
         <div className="ops-panel">
           <PanelHeader
             title="Tình trạng camera"
-            subtitle="Nguồn video đang cấu hình"
+            subtitle="Chỉ hiển thị nguồn video còn hoạt động"
           />
           <div className="camera-list">
-            {cameras.map((camera) => (
-              <div className="camera-row" key={camera.id}>
-                <div className="camera-icon">
-                  <Camera className="w-5 h-5" />
+            {cameras.length > 0 ? (
+              cameras.map((camera) => (
+                <div className="camera-row" key={camera.id}>
+                  <div className="camera-icon">
+                    <Camera className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <strong>{camera.name}</strong>
+                    <span>{camera.location || 'Chưa gán vị trí'}</span>
+                  </div>
+                  <em className="badge ok">Còn hoạt động</em>
                 </div>
-                <div>
-                  <strong>{camera.name}</strong>
-                  <span>{camera.location || "Chưa gán vị trí"}</span>
-                </div>
-                <em
-                  className={camera.status === 1 ? "badge ok" : "badge muted"}
-                >
-                  {formatCameraStatus(camera.status)}
-                </em>
-              </div>
-            ))}
+              ))
+            ) : (
+              <EmptyState text="Không có camera hoạt động" />
+            )}
           </div>
         </div>
 
@@ -245,13 +239,13 @@ const Dashboard = () => {
                 {recentVehicles.map((vehicle) => (
                   <tr key={vehicle.id}>
                     <td>#{vehicle.id}</td>
-                    <td>{vehicle.plate || "N/A"}</td>
+                    <td>{vehicle.plate || 'N/A'}</td>
                     <td>
                       <span className="badge info">
                         {formatVehicleType(vehicle.vehicle_type_id ?? vehicle.vehicle_type)}
                       </span>
                     </td>
-                    <td>Camera {vehicle.camera_id || "N/A"}</td>
+                    <td>Camera {vehicle.camera_id || 'N/A'}</td>
                     <td>{formatEventType(vehicle.event_type)}</td>
                     <td>{formatEventStatus(vehicle.status)}</td>
                     <td>{formatVietnamDateTime(getEventTime(vehicle))}</td>
@@ -278,10 +272,11 @@ const Dashboard = () => {
   );
 };
 
-// eslint-disable-next-line no-unused-vars
-const MetricCard = ({ icon: Icon, label, value, hint, tone }) => (
+const MetricCard = ({ icon, label, value, hint, tone }) => (
   <div className={`metric-card ${tone}`}>
-    <div className="metric-icon"><Icon className="w-6 h-6" /></div>
+    <div className="metric-icon">
+      {React.createElement(icon, { className: 'w-6 h-6' })}
+    </div>
     <div>
       <p>{label}</p>
       <strong>{value}</strong>
@@ -306,10 +301,9 @@ const TypeBox = ({ label, value }) => (
   </div>
 );
 
-// eslint-disable-next-line no-unused-vars
-const ServiceRow = ({ icon: Icon, label, value }) => (
+const ServiceRow = ({ icon, label, value }) => (
   <div className="service-row">
-    <Icon className="w-5 h-5" />
+    {React.createElement(icon, { className: 'w-5 h-5' })}
     <span>{label}</span>
     <strong>{value}</strong>
   </div>

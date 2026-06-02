@@ -261,6 +261,14 @@ a {
   display: block;
 }
 
+.camera-monitor-screen img.stream-portrait {
+  width: min(100%, 360px);
+}
+
+.camera-monitor-screen img.stream-landscape {
+  width: min(100%, 720px);
+}
+
 .camera-loading-overlay {
   position: absolute;
   inset: 0;
@@ -1312,10 +1320,14 @@ a {
 }
 
 .live-page .camera-monitor-screen img {
-  width: 360px;
+  width: min(100%, 360px);
   height: auto;
   max-height: none;
   object-fit: contain;
+}
+
+.live-page .camera-monitor-screen img.stream-landscape {
+  width: min(100%, 720px);
 }
 
 .telemetry-grid {

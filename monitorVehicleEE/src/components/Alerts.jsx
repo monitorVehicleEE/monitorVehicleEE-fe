@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { alertsAPI } from '../services/api';
 import websocketService from '../services/websocket';
 import { AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react';
+import Loading from './Loading';
 
 const Alerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -95,6 +96,10 @@ const Alerts = () => {
         return <AlertTriangle className="w-6 h-6" />;
     }
   };
+
+  if (loading) {
+    return <Loading />;
+  }
 
   return (
     <div className="p-6">
