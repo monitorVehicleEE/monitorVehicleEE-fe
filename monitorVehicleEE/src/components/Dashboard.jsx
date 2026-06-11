@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, AlertTriangle, Calendar, Camera, Car, Server, TrendingUp } from 'lucide-react';
 
-import { camerasAPI, statisticsAPI, vehicleEventsAPI } from '../services/api';
+import { camerasAPI, statisticsAPI, vehicleEventsAPI } from '../api/api';
 import { formatVehicleType, formatVietnamDateTime, getVehicleCount } from '../utils/format';
 import {
   formatEventStatus,
@@ -80,10 +80,15 @@ const Dashboard = () => {
       const activeCameras = Array.isArray(camerasRes.data)
         ? camerasRes.data.filter((camera) => camera.status === 1)
         : [];
+      const approvedVehicles = Array.isArray(vehiclesRes.data)
+        ? vehiclesRes.data.filter((vehicle) => Number(vehicle.status) !== 0)
+        : Array.isArray(vehiclesRes.data?.items)
+          ? vehiclesRes.data.items.filter((vehicle) => Number(vehicle.status) !== 0)
+          : [];
 
       setSummary(summaryRes.data);
       setDailyStats(dailyRes.data);
-      setRecentVehicles(vehiclesRes.data);
+      setRecentVehicles(approvedVehicles);
       setCameras(activeCameras);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -102,6 +107,8 @@ const Dashboard = () => {
   if (loading) {
     return <Loading />;
   }
+
+  const trafficStats = period === 'month' ? groupMonthStatsByWeek(dailyStats) : dailyStats;
 
   return (
     <div className="ops-page">
@@ -150,7 +157,6 @@ const Dashboard = () => {
           icon={Camera}
           label="Camera hoạt động"
           value={cameras.length}
-          hint="Không tính camera đã xóa"
           tone="red"
         />
       </section>
@@ -162,9 +168,9 @@ const Dashboard = () => {
             subtitle="Phân nhóm theo phạm vi phương tiện vận hành"
           />
           <div className="traffic-bars">
-            {dailyStats.length > 0 ? (
-              dailyStats.map((stat) => {
-                const max = Math.max(...dailyStats.map((item) => item.total), 1);
+            {trafficStats.length > 0 ? (
+              trafficStats.map((stat) => {
+                const max = Math.max(...trafficStats.map((item) => item.total), 1);
                 return (
                   <div className="traffic-row" key={stat.date}>
                     <div className="traffic-date">{stat.date}</div>
@@ -183,10 +189,10 @@ const Dashboard = () => {
             )}
           </div>
           <div className="type-summary">
-            <TypeBox label="Xe máy" value={sumType(dailyStats, ['motorbike'])} />
-            <TypeBox label="Ô tô con" value={sumType(dailyStats, ['car'])} />
-            <TypeBox label="Xe tải" value={sumType(dailyStats, ['truck'])} />
-            <TypeBox label="Xe container" value={sumType(dailyStats, ['container'])} />
+            <TypeBox label="Xe máy" value={sumType(trafficStats, ['motorbike'])} />
+            <TypeBox label="Ô tô con" value={sumType(trafficStats, ['car'])} />
+            <TypeBox label="Xe tải" value={sumType(trafficStats, ['truck'])} />
+            <TypeBox label="Xe container" value={sumType(trafficStats, ['container'])} />
           </div>
         </div>
 
@@ -313,6 +319,27 @@ const EmptyState = ({ text }) => <div className="empty-state">{text}</div>;
 
 function sumType(stats, keys) {
   return stats.reduce((total, stat) => total + getVehicleCount(stat.by_type, keys), 0);
+}
+
+function groupMonthStatsByWeek(stats) {
+  const weeks = [1, 2, 3, 4].map((week) => ({
+    date: `Tuần ${week}`,
+    total: 0,
+    by_type: {},
+  }));
+
+  stats.forEach((stat) => {
+    const day = Number(String(stat.date || '').slice(-2));
+    const weekIndex = Math.min(Math.max(Math.ceil((day || 1) / 7), 1), 4) - 1;
+    const targetWeek = weeks[weekIndex];
+
+    targetWeek.total += Number(stat.total || 0);
+    Object.entries(stat.by_type || {}).forEach(([type, count]) => {
+      targetWeek.by_type[type] = (targetWeek.by_type[type] || 0) + Number(count || 0);
+    });
+  });
+
+  return weeks;
 }
 
 export default Dashboard;

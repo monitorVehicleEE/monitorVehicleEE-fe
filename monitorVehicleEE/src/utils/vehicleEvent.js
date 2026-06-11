@@ -19,6 +19,9 @@ export const getEventTime = (event) => {
 
 export const formatEventStatus = (status) => {
   const statusMap = {
+    0: "Chờ xác nhận",
+    1: "Tự động duyệt",
+    2: "Đã xác nhận",
     PENDING: "Chờ xác nhận",
     AUTO_APPROVED: "Tự động duyệt",
     MANUAL_APPROVED: "Đã xác nhận",

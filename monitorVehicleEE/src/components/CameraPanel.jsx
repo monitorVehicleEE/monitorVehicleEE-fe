@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { camerasAPI } from "../services/api";
+import { camerasAPI } from "../api/api";
 import {
   buildCameraStreamUrl,
   getCameraStatus,
@@ -289,7 +289,7 @@ function CameraView({ camera, onEdit, onDelete }) {
     try {
       const res = await getCameraStatus(camera.id);
 
-      if (res.running) {
+      if (res.running && !res.send_vehicle_events) {
         setCameraRunning(true);
         setLoading(true);
         setStreamUrl(buildStreamUrl());
@@ -308,7 +308,7 @@ function CameraView({ camera, onEdit, onDelete }) {
   const handleStart = async () => {
     try {
       setLoading(true);
-      await startCamera(camera.id, false);
+      await startCamera(camera.id, false, camera);
       setCameraRunning(true);
       setStreamUrl(buildStreamUrl());
     } catch (err) {

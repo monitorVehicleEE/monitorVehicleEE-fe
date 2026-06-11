@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Check, Download, Filter, Pencil, X } from 'lucide-react';
 
 import { buildEventMediaUrl } from '../api/camAPI';
-import { camerasAPI, vehicleEventsAPI } from '../services/api';
+import { camerasAPI, vehicleEventsAPI } from '../api/api';
 import Loading from './Loading';
 import { formatVehicleType, formatVietnamDateTime, VEHICLE_TYPES } from '../utils/format';
 import {
@@ -21,6 +21,13 @@ const vehicleTypeFilterAliases = {
   container: ['container', 'xctn', 'xe-container', '4'],
 };
 
+const vehicleTypeIdMap = {
+  motorbike: 1,
+  car: 2,
+  truck: 3,
+  container: 4,
+};
+
 const getVehicleTypeValue = (event) => event.vehicle_type_id ?? event.vehicle_type;
 
 const matchesVehicleType = (event, vehicleType) => {
@@ -31,15 +38,30 @@ const matchesVehicleType = (event, vehicleType) => {
   return aliases.includes(eventType);
 };
 
-const isHistoryEvent = (event) => event.status !== 'PENDING';
+const normalizeHistoryParams = (params) => {
+  const nextParams = { ...params };
 
-const filterVehicleEvents = (events, params) => {
+  if (nextParams.vehicle_type) {
+    const vehicleTypeId = vehicleTypeIdMap[nextParams.vehicle_type];
+    if (vehicleTypeId) {
+      nextParams.vehicle_type_id = vehicleTypeId;
+    }
+    delete nextParams.vehicle_type;
+  }
+
+  return nextParams;
+};
+
+const isHistoryEvent = (event) => Number(event.status) !== 0;
+const DEFAULT_PAGE_SIZE = 10;
+
+const filterVehicleEvents = (events, params, paginate = true) => {
   const startDate = params.start_date ? new Date(params.start_date) : null;
   const endDate = params.end_date ? new Date(params.end_date) : null;
   const skip = Number(params.skip || 0);
   const limit = Number(params.limit || events.length);
 
-  return events
+  const filteredEvents = events
     .filter((event) => {
       const eventTime = getEventTime(event);
       const eventDate = eventTime ? new Date(eventTime) : null;
@@ -52,19 +74,34 @@ const filterVehicleEvents = (events, params) => {
         (!endDate || (eventDate && eventDate <= endDate))
       );
     })
-    .sort((a, b) => new Date(getEventTime(b) || 0) - new Date(getEventTime(a) || 0))
-    .slice(skip, skip + limit);
+    .sort((a, b) => new Date(getEventTime(b) || 0) - new Date(getEventTime(a) || 0));
+
+  return paginate ? filteredEvents.slice(skip, skip + limit) : filteredEvents;
 };
 
 const loadVehicleEvents = async (params) => {
   try {
-    const response = await vehicleEventsAPI.list(params);
-    const events = Array.isArray(response.data) ? response.data : response.data?.items || [];
-    return filterVehicleEvents(events, params);
+    const response = await vehicleEventsAPI.list(normalizeHistoryParams(params));
+    if (!Array.isArray(response.data) && Array.isArray(response.data?.items)) {
+      return {
+        items: response.data.items.filter((event) => Number(event.status) !== 0),
+        total: Number(response.data.total || 0),
+      };
+    }
+
+    const filteredEvents = filterVehicleEvents(response.data || [], params, false);
+    return {
+      items: filterVehicleEvents(filteredEvents, params),
+      total: filteredEvents.length,
+    };
   } catch {
     const response = await vehicleEventsAPI.liveFeed();
     const approved = Array.isArray(response.data?.approved) ? response.data.approved : [];
-    return filterVehicleEvents(approved, params);
+    const filteredEvents = filterVehicleEvents(approved, params, false);
+    return {
+      items: filterVehicleEvents(filteredEvents, params),
+      total: filteredEvents.length,
+    };
   }
 };
 
@@ -97,32 +134,39 @@ const History = () => {
   const [editingPlate, setEditingPlate] = useState('');
   const [savingPlate, setSavingPlate] = useState(false);
   const [plateEditError, setPlateEditError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalVehicles, setTotalVehicles] = useState(0);
   const [filters, setFilters] = useState({
     camera_id: '',
     vehicle_type: '',
     start_date: '',
     end_date: '',
-    skip: 0,
-    limit: '',
   });
 
   const loadCameras = async () => {
     try {
       const response = await camerasAPI.list();
-      setCameras(response.data);
+      setCameras(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to load cameras:', error);
     }
   };
 
-  const loadVehicles = async () => {
+  const loadVehicles = async (nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
     try {
+      const skip = (nextPage - 1) * nextPageSize;
       const params = Object.fromEntries(
         Object.entries(filters).filter(([, value]) => value !== ''),
       );
-      const response = await loadVehicleEvents(params);
-      setVehicles(response);
+      const response = await loadVehicleEvents({
+        ...params,
+        skip,
+        limit: nextPageSize,
+      });
+      setVehicles(response.items);
+      setTotalVehicles(response.total);
     } catch (error) {
       console.error('Failed to load vehicles:', error);
     } finally {
@@ -137,7 +181,24 @@ const History = () => {
   }, []);
 
   const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value, skip: 0 }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const applyFilters = () => {
+    setPage(1);
+    loadVehicles(1, pageSize);
+  };
+
+  const handlePageChange = (nextPage) => {
+    setPage(nextPage);
+    loadVehicles(nextPage, pageSize);
+  };
+
+  const handlePageSizeChange = (event) => {
+    const nextPageSize = Number(event.target.value);
+    setPageSize(nextPageSize);
+    setPage(1);
+    loadVehicles(1, nextPageSize);
   };
 
   const startEditPlate = (vehicle) => {
@@ -226,6 +287,10 @@ const History = () => {
     return <Loading />;
   }
 
+  const totalPages = Math.max(1, Math.ceil(totalVehicles / pageSize));
+  const pageStart = totalVehicles === 0 ? 0 : (page - 1) * pageSize + 1;
+  const pageEnd = Math.min(page * pageSize, totalVehicles);
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -287,7 +352,7 @@ const History = () => {
 
           <button
             type="button"
-            onClick={loadVehicles}
+            onClick={applyFilters}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           >
             Áp dụng
@@ -424,10 +489,50 @@ const History = () => {
                     </td>
                   </tr>
                 ))}
+                {vehicles.length === 0 && (
+                  <tr>
+                    <td className="px-6 py-10 text-center text-sm text-gray-500" colSpan={12}>
+                      Không có dữ liệu
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
+        <div className="history-pagination">
+          <div className="history-pagination-info">
+           ‹ {pageStart}-{pageEnd} / {totalVehicles}
+          </div>
+
+          <div className="history-pagination-controls">
+            <select value={pageSize} onChange={handlePageSizeChange}>
+              <option value={10}>10 / trang</option>
+              <option value={20}>20 / trang</option>
+              <option value={50}>50 / trang</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1}
+            >
+              Trước
+            </button>
+
+            <span>
+              Trang {page} / {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages}
+            >
+              Sau
+            </button>
+          </div>
+        </div>
       </div>
 
       {previewImage && (

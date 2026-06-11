@@ -5,6 +5,7 @@ import {
   BarChart3,
   Bell,
   Camera,
+  Car,
   Clock,
   History,
   LayoutDashboard,
@@ -22,11 +23,14 @@ import HistoryPage from '../components/History';
 import LiveVideo from '../components/LiveVideo';
 import SearchPage from '../components/Search';
 import Statistics from '../components/Statistics';
+import VehiclePanel from '../components/VehiclePanel';
+import { alertsAPI } from '../api/api';
 import { formatVietnamTime } from '../utils/format';
 
 const navItems = [
   { path: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
-  { path: '/cameras', label: 'Quản lý camera', icon: Camera },
+  { path: '/cameras', label: 'Quản lý camera', icon: Camera, adminOnly: true },
+  { path: '/vehicles', label: 'Quản lý phương tiện', icon: Car, adminOnly: true },
   { path: '/live', label: 'Giám sát trực tiếp', icon: Video },
   { path: '/alerts', label: 'Cảnh báo', icon: AlertTriangle },
   { path: '/history', label: 'Lịch sử phương tiện', icon: History },
@@ -37,6 +41,7 @@ const navItems = [
 const pageTitles = {
   '/dashboard': 'Trung tâm giám sát phương tiện',
   '/cameras': 'Quản lý camera',
+  '/vehicles': 'Quản lý phương tiện',
   '/live': 'Giám sát trực tiếp',
   '/alerts': 'Quản lý cảnh báo',
   '/history': 'Lịch sử phương tiện ra/vào',
@@ -46,6 +51,7 @@ const pageTitles = {
 
 function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const storedUser = localStorage.getItem('user');
   let user = null;
 
@@ -56,6 +62,38 @@ function HomePage() {
   }
 
   const userName = user?.username || user?.name || user?.email || 'Người dùng';
+  const isAdmin = Number(user?.role) === 1;
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
+  const [alertCount, setAlertCount] = useState(0);
+  const restrictedPaths = new Set(['/cameras', '/vehicles']);
+  const currentPath = !isAdmin && restrictedPaths.has(location.pathname)
+    ? '/dashboard'
+    : location.pathname;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadAlertCount = async () => {
+      try {
+        const response = await alertsAPI.list({ is_resolved: false });
+        if (!mounted) return;
+        const items = Array.isArray(response.data) ? response.data : [];
+        setAlertCount(items.length);
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to load alert count:', error);
+        }
+      }
+    };
+
+    loadAlertCount();
+    const interval = setInterval(loadAlertCount, 5000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -65,13 +103,25 @@ function HomePage() {
 
   return (
     <div className="monitor-shell">
-      <Sidebar userName={userName} onLogout={handleLogout} />
+      <Sidebar
+        userName={userName}
+        onLogout={handleLogout}
+        navItems={visibleNavItems}
+        alertCount={alertCount}
+      />
       <div className="monitor-workspace">
-        <TopBar />
+        <TopBar currentPath={currentPath} alertCount={alertCount} />
         <main className="monitor-content">
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/cameras" element={<CameraPanel />} />
+            <Route
+              path="/cameras"
+              element={isAdmin ? <CameraPanel /> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/vehicles"
+              element={isAdmin ? <VehiclePanel /> : <Navigate to="/dashboard" replace />}
+            />
             <Route path="/live" element={<LiveVideo />} />
             <Route path="/statistics" element={<Statistics />} />
             <Route path="/search" element={<SearchPage />} />
@@ -85,7 +135,7 @@ function HomePage() {
   );
 }
 
-function Sidebar({ userName, onLogout }) {
+function Sidebar({ userName, onLogout, navItems, alertCount }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -114,16 +164,20 @@ function Sidebar({ userName, onLogout }) {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
+          const isAlertTab = item.path === '/alerts';
 
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`nav-item ${isActive ? 'active' : ''}`}
+              className={`nav-item ${isActive ? 'active' : ''} ${isAlertTab && alertCount > 0 ? 'alert-flash' : ''}`}
               onClick={() => setMenuOpen(false)}
             >
               <Icon className="w-5 h-5" />
               <span>{item.label}</span>
+              {isAlertTab && alertCount > 0 && (
+                <strong className="nav-badge">{alertCount}</strong>
+              )}
             </Link>
           );
         })}
@@ -149,8 +203,7 @@ function Sidebar({ userName, onLogout }) {
   );
 }
 
-function TopBar() {
-  const location = useLocation();
+function TopBar({ currentPath, alertCount }) {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -162,7 +215,7 @@ function TopBar() {
     <header className="monitor-topbar">
       <div>
         <p className="topbar-kicker">TRẠM KIỂM SOÁT RA/VÀO</p>
-        <h2>{pageTitles[location.pathname] || 'NQ MOVEE'}</h2>
+        <h2>{pageTitles[currentPath] || 'NQ MOVEE'}</h2>
       </div>
       <div className="topbar-actions">
         <div className="status-pill">
@@ -173,8 +226,9 @@ function TopBar() {
           <span className="status-dot online" />
           Vận hành
         </div>
-        <button className="icon-button" aria-label="Cảnh báo">
+        <button className="icon-button alert-icon-button" aria-label="Cảnh báo">
           <Bell className="w-5 h-5" />
+          {alertCount > 0 && <strong className="topbar-badge">{alertCount}</strong>}
         </button>
       </div>
     </header>

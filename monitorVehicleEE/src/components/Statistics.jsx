@@ -22,7 +22,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { statisticsAPI } from '../services/api';
+import { statisticsAPI } from '../api/api';
 import { formatVehicleType, getVietnamDateString } from '../utils/format';
 import Loading from './Loading';
 
@@ -105,7 +105,6 @@ const Statistics = () => {
           icon={Camera}
           label="Camera hoạt động"
           value={summary?.active_cameras || 0}
-          hint="Không tính camera đã xóa"
           tone="red"
         />
       </section>

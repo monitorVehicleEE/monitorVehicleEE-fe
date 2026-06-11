@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Check, ExternalLink, Pencil, X } from "lucide-react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Camera, Check, ExternalLink, Pencil, X } from "lucide-react";
 
 import {
   buildCameraStreamUrl,
@@ -8,8 +8,9 @@ import {
   startCamera,
   stopCamera,
 } from "../api/camAPI";
-import { camerasAPI, vehicleEventsAPI } from "../services/api";
+import { camerasAPI, vehicleEventsAPI } from "../api/api";
 import { formatVehicleType, formatVietnamDateTime } from "../utils/format";
+import { isSuspiciousPlateFormat } from "../utils/plateReview";
 import {
   formatEventType,
   formatEventStatus,
@@ -26,16 +27,26 @@ const LIVE_FEED_POLL_MS = 1000;
 const cameraRoleLabels = {
   0: "Cổng vào",
   1: "Cổng ra",
-  2: "Noi bo",
-  ENTRY: "Cong vao",
-  EXIT: "Cong ra",
-  INTERNAL: "Noi bo",
+  2: "Nội bộ",
+  ENTRY: "Cổng vào",
+  EXIT: "Cổng ra",
+  INTERNAL: "Nội bộ",
 };
 
 const formatVehiclePlateTitle = (event) => {
   const vehicleType = formatVehicleType(event?.vehicle_type_id ?? event?.vehicle_type);
-  const plate = event?.plate || "Chưa có biển số";
+  const hasPlateEvidence =
+    Boolean(event?.plate_image_path) || Number(event?.plate_confidence || 0) > 0;
+  const plate = event?.plate || (
+    hasPlateEvidence
+      ? "Cần kiểm tra thủ công"
+      : "Chưa có biển số"
+  );
   return `${vehicleType} - ${plate}`;
+};
+
+const formatAlertSeverity = (severity) => {
+  return String(severity || "high").toUpperCase();
 };
 
 const EventImages = ({ event, onPreview }) => {
@@ -48,18 +59,18 @@ const EventImages = ({ event, onPreview }) => {
     <div className="event-images">
       {vehicleImageUrl && (
         <button
-          className="event-image-button"
+          className="event-image-button vehicle-image-button"
           type="button"
-          onClick={() => onPreview?.(vehicleImageUrl, "Anh xe")}
+          onClick={() => onPreview?.(vehicleImageUrl, "Ảnh xe")}
         >
           <img src={vehicleImageUrl} alt={`Vehicle ${event?.id || ""}`} />
         </button>
       )}
       {plateImageUrl && (
         <button
-          className="event-image-button"
+          className="event-image-button plate-image-button"
           type="button"
-          onClick={() => onPreview?.(plateImageUrl, "Anh bien so")}
+          onClick={() => onPreview?.(plateImageUrl, "Ảnh biển số")}
         >
           <img src={plateImageUrl} alt={`Plate ${event?.id || ""}`} />
         </button>
@@ -82,10 +93,12 @@ function LiveVideo() {
   const [error, setError] = useState("");
   const [approvedEvents, setApprovedEvents] = useState([]);
   const [pendingEvents, setPendingEvents] = useState([]);
+  const [alertEvents, setAlertEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [plateInput, setPlateInput] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [plateInputTouched, setPlateInputTouched] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [streamOrientation, setStreamOrientation] = useState("portrait");
 
@@ -112,10 +125,20 @@ function LiveVideo() {
         : "DETECTED";
   const approvedFeedTitle =
     selectedCameraEventType === "OUT"
-      ? "Xe đang ra"
+      ? "Xe ra"
       : selectedCameraEventType === "IN"
-        ? "Xe đang vào"
+        ? "Xe vào"
         : "Xe phát hiện";
+
+  const suspiciousPendingEvents = useMemo(
+    () => pendingEvents.filter((event) => isSuspiciousPlateFormat(event.plate)),
+    [pendingEvents],
+  );
+
+  const normalPendingEvents = useMemo(
+    () => pendingEvents.filter((event) => !isSuspiciousPlateFormat(event.plate)),
+    [pendingEvents],
+  );
 
   const loadCameras = useCallback(async () => {
     try {
@@ -155,17 +178,26 @@ function LiveVideo() {
 
       const approved = Array.isArray(res.data?.approved) ? res.data.approved : [];
       const pending = Array.isArray(res.data?.pending) ? res.data.pending : [];
+      const alerts = Array.isArray(res.data?.alerts) ? res.data.alerts : [];
 
       setApprovedEvents(approved);
       setPendingEvents(pending);
+      setAlertEvents(alerts);
       setSelectedEvent((current) => {
         const mergedEvents = [...pending, ...approved];
-        if (current && mergedEvents.some((event) => event.id === current.id)) {
-          return current;
+        if (current) {
+          const freshEvent = mergedEvents.find((event) => event.id === current.id);
+          if (freshEvent) {
+            if (!plateInputTouched) {
+              setPlateInput(freshEvent.plate || "");
+            }
+            return freshEvent;
+          }
         }
 
         const firstEvent = pending[0] || null;
         setPlateInput(firstEvent?.plate || "");
+        setPlateInputTouched(false);
         return firstEvent;
       });
       setReviewError("");
@@ -177,6 +209,7 @@ function LiveVideo() {
       console.error("Failed to load pending vehicle events:", err);
       setApprovedEvents([]);
       setPendingEvents([]);
+      setAlertEvents([]);
     }
   }, [selectedCamera]);
 
@@ -214,9 +247,11 @@ function LiveVideo() {
     setCameraRunning(false);
     setSelectedEvent(null);
     setPlateInput("");
+    setPlateInputTouched(false);
     setReviewError("");
     setPendingEvents([]);
     setApprovedEvents([]);
+    setAlertEvents([]);
   };
 
   const handleStart = async () => {
@@ -224,7 +259,7 @@ function LiveVideo() {
 
     try {
       setLoadingStream(true);
-      await startCamera(selectedCamera.id, true);
+      await startCamera(selectedCamera.id, true, selectedCamera);
       setCameraRunning(true);
       setStreamUrl(buildSelectedStreamUrl(selectedCamera));
     } catch (err) {
@@ -258,6 +293,7 @@ function LiveVideo() {
   const handleSelectEvent = (event) => {
     setSelectedEvent(event);
     setPlateInput(event.plate || "");
+    setPlateInputTouched(false);
     setReviewError("");
   };
 
@@ -267,6 +303,7 @@ function LiveVideo() {
 
   const handleCancelReview = () => {
     setPlateInput(selectedEvent?.plate || "");
+    setPlateInputTouched(false);
     setReviewError("");
     setSelectedEvent(null);
   };
@@ -280,10 +317,10 @@ function LiveVideo() {
       const payload = {
         plate: plateInput.trim().toUpperCase() || selectedEvent.plate,
         vehicle_type_id: selectedEvent.vehicle_type_id,
-        status: "MANUAL_APPROVED",
+        status: 2,
       };
 
-      if (selectedEvent.status === "PENDING") {
+      if (Number(selectedEvent.status) === 0) {
         await vehicleEventsAPI.approve(selectedEvent.id, payload);
       } else {
         await vehicleEventsAPI.update(selectedEvent.id, payload);
@@ -304,13 +341,11 @@ function LiveVideo() {
     try {
       setReviewing(true);
       setReviewError("");
-      await vehicleEventsAPI.reject(selectedEvent.id, {
-        status: "REJECTED",
-      });
+      await vehicleEventsAPI.reject(selectedEvent.id, {});
       await loadLiveFeed();
     } catch (err) {
       console.error("Failed to reject event:", err);
-      setReviewError("Tu choi event that bai");
+      setReviewError("Từ chối event thất bại");
     } finally {
       setReviewing(false);
     }
@@ -320,7 +355,7 @@ function LiveVideo() {
     <div className="review-panel">
       <div className="panel-header">
         <div>
-          <h3>Chi tiet event</h3>
+          <h3>Chi tiết event</h3>
           <p>#{selectedEvent.id}</p>
         </div>
       </div>
@@ -328,10 +363,13 @@ function LiveVideo() {
       <EventImages event={selectedEvent} onPreview={handlePreviewImage} />
 
       <label className="review-field">
-        <span>Bien so</span>
+        <span>Biển số</span>
         <input
           value={plateInput}
-          onChange={(event) => setPlateInput(event.target.value)}
+          onChange={(event) => {
+            setPlateInput(event.target.value);
+            setPlateInputTouched(true);
+          }}
           placeholder="Nhập biển số"
         />
       </label>
@@ -349,7 +387,7 @@ function LiveVideo() {
           label="Độ tin cậy biển số"
           value={formatPercent(getPlateConfidence(selectedEvent))}
         />
-        <Telemetry label="Hướng " value={formatEventType(selectedEvent.event_type)} />
+        <Telemetry label="Hướng" value={formatEventType(selectedEvent.event_type)} />
       </div>
 
       {reviewError && <div className="camera-error">{reviewError}</div>}
@@ -463,7 +501,7 @@ function LiveVideo() {
                 <Camera className="w-5 h-5" />
                 <div>
                   <strong>{camera.name || `Camera ${camera.id}`}</strong>
-                  <span>{camera.location || "Chua gan vi tri"}</span>
+                  <span>{camera.location || "Chưa gắn vị trí"}</span>
                 </div>
                 <em>{cameraRoleLabels[camera.camera_role] || "Camera"}</em>
               </button>
@@ -488,7 +526,7 @@ function LiveVideo() {
                       href={streamUrl}
                       target="_blank"
                       rel="noreferrer"
-                      aria-label="Mo stream camera"
+                      aria-label="Mở stream camera"
                       title={streamUrl}
                     >
                       <ExternalLink className="w-4 h-4" />
@@ -549,8 +587,40 @@ function LiveVideo() {
 
               <div className={`pending-workspace ${selectedEventIsPending ? "reviewing" : ""}`}>
                 <div className="detection-feed pending-feed">
-                  {pendingEvents.length > 0 ? (
-                    pendingEvents.map((event) => (
+                  {suspiciousPendingEvents.length > 0 && (
+                    <div className="suspicious-plate-panel">
+                      <div className="suspicious-plate-header">
+                        <AlertTriangle className="w-4 h-4" />
+                        <div>
+                          <strong>Biển số nghi vấn</strong>
+                          <span>Có thể thiếu ký tự  </span>
+                        </div>
+                      </div>
+
+                      {suspiciousPendingEvents.map((event) => (
+                        <button
+                          key={event.id}
+                          className={`detection-card suspicious ${
+                            selectedEvent?.id === event.id ? "active" : ""
+                          }`}
+                          type="button"
+                          onClick={() => handleSelectEvent(event)}
+                        >
+                          <div>
+                            <strong>{formatVehiclePlateTitle(event)}</strong>
+                            <span>
+                              Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
+                            </span>
+                            <p>{formatVietnamDateTime(getEventTime(event))}</p>
+                          </div>
+                          <em>{formatPercent(getPlateConfidence(event) ?? getVehicleConfidence(event))}</em>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {normalPendingEvents.length > 0 ? (
+                    normalPendingEvents.map((event) => (
                       <button
                         key={event.id}
                         className={`detection-card ${selectedEvent?.id === event.id ? "active" : ""}`}
@@ -568,13 +638,54 @@ function LiveVideo() {
                       </button>
                     ))
                   ) : (
-                    <div className="empty-state compact">Không có xe chờ duyệt</div>
+                    suspiciousPendingEvents.length === 0 && (
+                      <div className="empty-state compact">Không có xe chờ duyệt</div>
+                    )
                   )}
                 </div>
 
                 {selectedEventIsPending && renderReviewPanel()}
               </div>
             </aside>
+          </section>
+
+                    <section className="ops-panel blacklist-alert-panel">
+            <div className="panel-header blacklist-alert-header">
+              <div>
+                <h3>Cảnh Báo</h3>
+                <p>Xe vi phạm gần đây</p>
+              </div>
+              <strong>{alertEvents.length}</strong>
+            </div>
+
+            <div className="blacklist-alert-list">
+              {alertEvents.length > 0 ? (
+                alertEvents.map((alert) => (
+                  <div key={alert.id} className="blacklist-alert-card">
+                    <div className="blacklist-alert-icon">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div className="blacklist-alert-content">
+                      <div className="blacklist-alert-title">
+                        <strong>{alert.plate || "N/A"}</strong>
+                        <span>{alert.alert_type || "BLACKLIST_DETECTED"}</span>
+                      </div>
+                      <p>{alert.message || "Phát hiện xe thuộc blacklist"}</p>
+                      <div className="blacklist-alert-meta">
+                        <span>Camera {alert.camera_id || "N/A"}</span>
+                        <span>Thời gian: {formatVietnamDateTime(alert.timestamp || alert.date_new)}</span>
+                      </div>
+                    </div>
+                    <div className="blacklist-alert-status">
+                      <em>{formatAlertSeverity(alert.severity)}</em>
+                      <span>{alert.is_resolved ? "Đã xử lý" : "Chưa xử lý"}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="blacklist-alert-empty">Chưa có cảnh báo </div>
+              )}
+            </div>
           </section>
 
           <section className="ops-panel approved-panel">
@@ -608,8 +719,8 @@ function LiveVideo() {
                         className="icon-button"
                         type="button"
                         onClick={() => handleSelectEvent(event)}
-                        aria-label="Sua event"
-                        title="Sua"
+                        aria-label="Sửa event"
+                        title="Sửa"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -628,7 +739,7 @@ function LiveVideo() {
           </section>
         </>
       ) : (
-        <div className="empty-state">Chua co camera nao dang hoat dong</div>
+        <div className="empty-state">Chưa có camera nào đang hoạt động</div>
       )}
 
       {previewImage && (
@@ -655,3 +766,4 @@ const Telemetry = ({ label, value }) => (
 );
 
 export default LiveVideo;
+

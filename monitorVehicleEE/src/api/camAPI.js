@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_STREAM_API_URL || "http://localhost:8001";
+const API_URL =
+  import.meta.env.VITE_STREAM_API_URL || "http://localhost:8001"; //10.60.229.211
 
 export const getCameraStatus = async (camId) => {
   const res = await axios.get(`${API_URL}/camera-status/${camId}`);
@@ -8,9 +9,9 @@ export const getCameraStatus = async (camId) => {
   return res.data;
 };
 
-export const startCamera = async (camId, sendEvent = true) => {
+export const startCamera = async (camId, sendEvent = true, cameraPayload = null) => {
   const eventFlag = sendEvent ? "true" : "false";
-  const res = await axios.post(`${API_URL}/start-stream/${camId}/${eventFlag}`);
+  const res = await axios.post(`${API_URL}/start-stream/${camId}/${eventFlag}`, cameraPayload);
 
   return res.data;
 };
@@ -36,7 +37,9 @@ export const buildEventMediaUrl = (path) => {
       const url = new URL(normalizedPath);
 
       if (
-        (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+        (url.hostname === "localhost" ||
+          url.hostname === "127.0.0.1" ||
+          url.hostname === "10.60.229.211") &&
         url.pathname.startsWith("/event-images/")
       ) {
         return `${API_URL}${url.pathname}${url.search}`;

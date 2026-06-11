@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { alertsAPI } from '../services/api';
+﻿import React, { useState, useEffect } from 'react';
+import { alertsAPI } from '../api/api';
+import { buildEventMediaUrl } from '../api/camAPI';
 import websocketService from '../services/websocket';
 import { AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react';
 import Loading from './Loading';
@@ -8,6 +9,7 @@ const Alerts = () => {
   const [alerts, setAlerts] = useState([]);
   const [filter, setFilter] = useState('all'); // all, unresolved, resolved
   const [loading, setLoading] = useState(true);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     loadAlerts();
@@ -75,8 +77,16 @@ const Alerts = () => {
     }
   };
 
+  const handlePreviewImage = (src, title) => {
+    setPreviewImage({ src, title });
+  };
+
+  const formatSeverity = (severity) => {
+    return String(severity || 'high').toUpperCase();
+  };
+
   const getSeverityColor = (severity) => {
-    switch (severity) {
+    switch (String(severity || '').toLowerCase()) {
       case 'critical': return 'bg-red-100 text-red-800 border-red-300';
       case 'high': return 'bg-orange-100 text-orange-800 border-orange-300';
       case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
@@ -86,7 +96,7 @@ const Alerts = () => {
   };
 
   const getSeverityIcon = (severity) => {
-    switch (severity) {
+    switch (String(severity || '').toLowerCase()) {
       case 'critical':
       case 'high':
         return <AlertTriangle className="w-6 h-6" />;
@@ -104,7 +114,7 @@ const Alerts = () => {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Cảnh báo realtime</h1>
+        <h1 className="text-3xl font-bold">Cảnh báo</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setFilter('all')}
@@ -142,11 +152,47 @@ const Alerts = () => {
                     <div className={`p-3 rounded-lg ${getSeverityColor(alert.severity)}`}>
                       {getSeverityIcon(alert.severity)}
                     </div>
+                    {(alert.image_path || alert.plate_image_path) && (
+                      <div className="alert-event-images">
+                        {alert.image_path && (
+                          <button
+                            className="alert-image-button"
+                            type="button"
+                            onClick={() => handlePreviewImage(
+                              buildEventMediaUrl(alert.image_path),
+                              `Ảnh xe ${alert.plate || alert.id}`
+                            )}
+                          >
+                            <img
+                              src={buildEventMediaUrl(alert.image_path)}
+                              alt={`Ảnh xe ${alert.plate || alert.id}`}
+                              className="alert-vehicle-image"
+                            />
+                          </button>
+                        )}
+                        {alert.plate_image_path && (
+                          <button
+                            className="alert-image-button"
+                            type="button"
+                            onClick={() => handlePreviewImage(
+                              buildEventMediaUrl(alert.plate_image_path),
+                              `Ảnh biển số ${alert.plate || alert.id}`
+                            )}
+                          >
+                            <img
+                              src={buildEventMediaUrl(alert.plate_image_path)}
+                              alt={`Ảnh biển số ${alert.plate || alert.id}`}
+                              className="alert-plate-image"
+                            />
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold capitalize">{alert.alert_type}</h3>
                         <span className={`px-3 py-1 text-xs font-semibold rounded-full uppercase ${getSeverityColor(alert.severity)}`}>
-                          {alert.severity}
+                          {formatSeverity(alert.severity)}
                         </span>
                         {alert.is_resolved && (
                           <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
@@ -196,6 +242,19 @@ const Alerts = () => {
             </div>
           )}
         </div>
+      )}
+
+      {previewImage && (
+        <button
+          className="image-preview-backdrop"
+          type="button"
+          onClick={() => setPreviewImage(null)}
+        >
+          <span className="image-preview-dialog">
+            <img src={previewImage.src} alt={previewImage.title} />
+            <span>{previewImage.title}</span>
+          </span>
+        </button>
       )}
     </div>
   );

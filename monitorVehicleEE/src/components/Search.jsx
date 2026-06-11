@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { buildEventMediaUrl } from '../api/camAPI';
-import { vehicleEventsAPI } from '../services/api';
+import { vehicleEventsAPI } from '../api/api';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { formatVehicleType, formatVietnamDateTime } from '../utils/format';
 import Loading from './Loading';
@@ -67,7 +67,7 @@ const Search = () => {
       const events = Array.isArray(response.data) ? response.data : [response.data].filter(Boolean);
       setResults(
         events
-          .filter((event) => statusFilter === 'all' || event.status !== 'PENDING')
+          .filter((event) => statusFilter === 'all' || Number(event.status) !== 0)
           .sort((a, b) => new Date(getEventTime(b) || 0) - new Date(getEventTime(a) || 0))
       );
     } catch (error) {

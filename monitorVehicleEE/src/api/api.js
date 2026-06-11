@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://192.168.1.109:8000";
+  import.meta.env.VITE_API_URL || "http://localhost:8000"; //10.60.229.211
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -77,7 +77,7 @@ export const vehicleEventsAPI = {
   getByPlate: (plate) => api.get(`/vehicle-events/plate/${plate}`),
   getLatestByPlate: (plate) => api.get(`/vehicle-events/plate/${plate}/latest`),
   getByCamera: (cameraId) => api.get(`/statistics/camera/${cameraId}`),
-  getPending: (params) => api.get('/vehicle-events/pending', { params }),
+  getPending: () => api.get('/vehicle-events/pending'),
   update: (id, data) => api.put(`/vehicle-events/${id}`, data),
   approve: (id, data) => api.put(`/vehicle-events/${id}/approve`, data),
   reject: (id, data) => api.put(`/vehicle-events/${id}/reject`, data),
@@ -86,7 +86,6 @@ export const vehicleEventsAPI = {
 
 // Vehicle Sessions API
 export const vehicleSessionsAPI = {
-  list: (params) => api.get('/vehicle-sessions', { params }),
   getOpen: (plate) => api.get(`/vehicle-sessions/open/${plate}`),
   create: (data) => api.post('/vehicle-sessions', data),
   close: (plate, data) => api.put(`/vehicle-sessions/${plate}/close`, data),
@@ -118,7 +117,7 @@ export const statisticsAPI = {
   hourly: (params) => api.get('/statistics/hourly', { params }),
   byType: (params) => api.get('/statistics/by-type', { params }),
   camera: (cameraId, params) => api.get(`/statistics/camera/${cameraId}`, { params }),
-  summary: (params) => api.get('/statistics/summary', { params }),
+  summary: () => api.get('/statistics/summary'),
 };
 
 export default api;
