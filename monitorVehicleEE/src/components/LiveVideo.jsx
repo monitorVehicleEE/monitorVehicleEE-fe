@@ -98,7 +98,7 @@ function LiveVideo() {
   const [plateInput, setPlateInput] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [reviewing, setReviewing] = useState(false);
-  const [plateInputTouched, setPlateInputTouched] = useState(false);
+  const plateInputTouchedRef = useRef(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [streamOrientation, setStreamOrientation] = useState("portrait");
 
@@ -188,7 +188,7 @@ function LiveVideo() {
         if (current) {
           const freshEvent = mergedEvents.find((event) => event.id === current.id);
           if (freshEvent) {
-            if (!plateInputTouched) {
+            if (!plateInputTouchedRef.current) {
               setPlateInput(freshEvent.plate || "");
             }
             return freshEvent;
@@ -197,7 +197,7 @@ function LiveVideo() {
 
         const firstEvent = pending[0] || null;
         setPlateInput(firstEvent?.plate || "");
-        setPlateInputTouched(false);
+        plateInputTouchedRef.current = false;
         return firstEvent;
       });
       setReviewError("");
@@ -247,7 +247,7 @@ function LiveVideo() {
     setCameraRunning(false);
     setSelectedEvent(null);
     setPlateInput("");
-    setPlateInputTouched(false);
+    plateInputTouchedRef.current = false;
     setReviewError("");
     setPendingEvents([]);
     setApprovedEvents([]);
@@ -293,7 +293,7 @@ function LiveVideo() {
   const handleSelectEvent = (event) => {
     setSelectedEvent(event);
     setPlateInput(event.plate || "");
-    setPlateInputTouched(false);
+    plateInputTouchedRef.current = false;
     setReviewError("");
   };
 
@@ -303,7 +303,7 @@ function LiveVideo() {
 
   const handleCancelReview = () => {
     setPlateInput(selectedEvent?.plate || "");
-    setPlateInputTouched(false);
+    plateInputTouchedRef.current = false;
     setReviewError("");
     setSelectedEvent(null);
   };
@@ -368,7 +368,7 @@ function LiveVideo() {
           value={plateInput}
           onChange={(event) => {
             setPlateInput(event.target.value);
-            setPlateInputTouched(true);
+            plateInputTouchedRef.current = true;
           }}
           placeholder="Nhập biển số"
         />
