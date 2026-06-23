@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Camera} from "lucide-react";
 import { camerasAPI } from "../api/api";
 import {
   buildCameraStreamUrl,
@@ -401,9 +402,11 @@ function CameraView({ camera, onEdit, onDelete }) {
             onError={() => setLoading(false)}
           />
         ) : (
-          <span>{loading ? "Camera đang khởi động" : "Camera chưa khởi động"}</span>
+           <div className="video-empty">
+              <Camera className="w-16 h-16" />
+              <p>{loading ? "Camera đang khởi động" : "Chọn camera và bấm xem"}</p>
+              </div>
         )}
-
         {loading && (
           <div className="">
             <LoadingCamera />

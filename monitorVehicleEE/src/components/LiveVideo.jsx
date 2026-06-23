@@ -507,6 +507,51 @@ function LiveVideo() {
               </button>
             ))}
           </section>
+          <section className="ops-panel blacklist-alert-panel">
+            <div className="panel-header blacklist-alert-header">
+              <div>
+                <h3>Cảnh Báo</h3>
+                <p>Xe vi phạm gần đây</p>
+              </div>
+              <strong>{alertEvents.length}</strong>
+            </div>
+
+            <div className="blacklist-alert-list">
+              {alertEvents.length > 0 ? (
+                alertEvents.map((alert) => (
+                  <div key={alert.id} className="blacklist-alert-card">
+                    <div className="blacklist-alert-icon">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div className="blacklist-alert-content">
+                      <div className="blacklist-alert-title">
+                        <strong>{alert.plate || "N/A"}</strong>
+                        <span>{alert.alert_type || "BLACKLIST_DETECTED"}</span>
+                      </div>
+                      <p>{alert.message || "Phát hiện xe thuộc blacklist"}</p>
+                      <div className="blacklist-alert-meta">
+                        <span>Camera {alert.camera_id || "N/A"}</span>
+                        <span>
+                          Thời gian:{" "}
+                          {formatVietnamDateTime(
+                            alert.timestamp || alert.date_new,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="blacklist-alert-status">
+                      <em>{formatAlertSeverity(alert.severity)}</em>
+                      <span>
+                        {alert.is_resolved ? "Đã xử lý" : "Chưa xử lý"}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="blacklist-alert-empty">Chưa có cảnh báo </div>
+              )}
+            </div>
+          </section>
 
           <section className="live-grid">
             <div className="video-panel">
@@ -516,7 +561,9 @@ function LiveVideo() {
                   <span>{streamUrl || "Chưa có stream đang chạy"}</span>
                 </div>
                 <div className="camera-monitor-actions">
-                  <span className={`camera-status-badge live-status-badge ${cameraRunning ? "online" : "offline"}`}>
+                  <span
+                    className={`camera-status-badge live-status-badge ${cameraRunning ? "online" : "offline"}`}
+                  >
                     {cameraRunning ? "Online" : "Offline"}
                   </span>
 
@@ -553,7 +600,10 @@ function LiveVideo() {
                 </div>
               </div>
 
-              <div className={`camera-monitor-screen ${streamUrl ? "streaming" : ""}`} ref={screenRef}>
+              <div
+                className={`camera-monitor-screen ${streamUrl ? "streaming" : ""}`}
+                ref={screenRef}
+              >
                 {streamUrl ? (
                   <img
                     className={`stream-${streamOrientation}`}
@@ -565,7 +615,11 @@ function LiveVideo() {
                 ) : (
                   <div className="video-empty">
                     <Camera className="w-16 h-16" />
-                    <p>{loadingStream ? "Camera đang khởi động" : "Chọn camera và bấm xem"}</p>
+                    <p>
+                      {loadingStream
+                        ? "Camera đang khởi động"
+                        : "Chọn camera và bấm xem"}
+                    </p>
                   </div>
                 )}
 
@@ -578,49 +632,116 @@ function LiveVideo() {
             </div>
 
             <aside className="ops-panel live-side-panel pending-panel">
-              <div className="panel-header">
-                <div>
-                  <h3>Chờ duyệt</h3>
-                  <p>Cần nhân viên xác nhận</p>
-                </div>
+              <div className="panel-header"></div>
+              <div>
+                <h3>{approvedFeedTitle}</h3>
+                <p>Tự động và vừa duyệt gần đây</p>
               </div>
-
-              <div className={`pending-workspace ${selectedEventIsPending ? "reviewing" : ""}`}>
-                <div className="detection-feed pending-feed">
-                  {suspiciousPendingEvents.length > 0 && (
-                    <div className="suspicious-plate-panel">
-                      <div className="suspicious-plate-header">
-                        <AlertTriangle className="w-4 h-4" />
-                        <div>
-                          <strong>Biển số nghi vấn</strong>
-                          <span>Có thể thiếu ký tự  </span>
-                        </div>
+              <div className="approved-feed">
+                {approvedEvents.length > 0 ? (
+                  approvedEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className={`detection-card approved ${
+                        event.image_path || event.plate_image_path
+                          ? "has-media"
+                          : ""
+                      }`}
+                    >
+                      <EventImages
+                        event={event}
+                        onPreview={handlePreviewImage}
+                      />
+                      <div>
+                        <strong>{formatVehiclePlateTitle(event)}</strong>
+                        <span>
+                          Camera {event.camera_id || "N/A"} -{" "}
+                          {formatEventType(event.event_type)}
+                        </span>
+                        <p>{formatVietnamDateTime(getEventTime(event))}</p>
                       </div>
-
-                      {suspiciousPendingEvents.map((event) => (
+                      <div className="approved-actions">
+                        <em>{formatEventStatus(event.status)}</em>
                         <button
-                          key={event.id}
-                          className={`detection-card suspicious ${
-                            selectedEvent?.id === event.id ? "active" : ""
-                          }`}
+                          className="icon-button"
                           type="button"
                           onClick={() => handleSelectEvent(event)}
+                          aria-label="Sửa event"
+                          title="Sửa"
                         >
-                          <div>
-                            <strong>{formatVehiclePlateTitle(event)}</strong>
-                            <span>
-                              Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
-                            </span>
-                            <p>{formatVietnamDateTime(getEventTime(event))}</p>
-                          </div>
-                          <em>{formatPercent(getPlateConfidence(event) ?? getVehicleConfidence(event))}</em>
+                          <Pencil className="w-4 h-4" />
                         </button>
-                      ))}
+                      </div>
+                      {selectedEvent?.id === event.id && (
+                        <div className="approved-edit-panel">
+                          {renderReviewPanel({
+                            actionLabel: "Lưu",
+                            showReject: false,
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))
+                ) : (
+                  <div className="empty-state compact">
+                    Chưa có xe vừa duyệt
+                  </div>
+                )}
+              </div>
+            </aside>
+          </section>
 
-                  {normalPendingEvents.length > 0 ? (
-                    normalPendingEvents.map((event) => (
+          <section className="ops-panel approved-panel">
+            <div className="panel-header">
+              <div>
+                <h3>Chờ duyệt</h3>
+                <p>Cần nhân viên xác nhận</p>
+              </div>
+            </div>
+            <div
+              className={`pending-workspace ${selectedEventIsPending ? "reviewing" : ""}`}
+            >
+              <div className="detection-feed pending-feed">
+                {suspiciousPendingEvents.length > 0 && (
+                  <div className="suspicious-plate-panel">
+                    <div className="suspicious-plate-header">
+                      <AlertTriangle className="w-4 h-4" />
+                      <div>
+                        <strong>Biển số nghi vấn</strong>
+                        <span>Có thể thiếu ký tự </span>
+                      </div>
+                    </div>
+
+                    {suspiciousPendingEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        className={`detection-card suspicious ${
+                          selectedEvent?.id === event.id ? "active" : ""
+                        }`}
+                        type="button"
+                        onClick={() => handleSelectEvent(event)}
+                      >
+                        <div>
+                          <strong>{formatVehiclePlateTitle(event)}</strong>
+                          <span>
+                            Camera {event.camera_id || "N/A"} -{" "}
+                            {formatEventType(event.event_type)}
+                          </span>
+                          <p>{formatVietnamDateTime(getEventTime(event))}</p>
+                        </div>
+                        <em>
+                          {formatPercent(
+                            getPlateConfidence(event) ??
+                              getVehicleConfidence(event),
+                          )}
+                        </em>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {normalPendingEvents.length > 0
+                  ? normalPendingEvents.map((event) => (
                       <button
                         key={event.id}
                         className={`detection-card ${selectedEvent?.id === event.id ? "active" : ""}`}
@@ -630,111 +751,27 @@ function LiveVideo() {
                         <div>
                           <strong>{formatVehiclePlateTitle(event)}</strong>
                           <span>
-                            Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
+                            Camera {event.camera_id || "N/A"} -{" "}
+                            {formatEventType(event.event_type)}
                           </span>
                           <p>{formatVietnamDateTime(getEventTime(event))}</p>
                         </div>
-                        <em>{formatPercent(getPlateConfidence(event) ?? getVehicleConfidence(event))}</em>
+                        <em>
+                          {formatPercent(
+                            getPlateConfidence(event) ??
+                              getVehicleConfidence(event),
+                          )}
+                        </em>
                       </button>
                     ))
-                  ) : (
-                    suspiciousPendingEvents.length === 0 && (
-                      <div className="empty-state compact">Không có xe chờ duyệt</div>
-                    )
-                  )}
-                </div>
-
-                {selectedEventIsPending && renderReviewPanel()}
-              </div>
-            </aside>
-          </section>
-
-                    <section className="ops-panel blacklist-alert-panel">
-            <div className="panel-header blacklist-alert-header">
-              <div>
-                <h3>Cảnh Báo</h3>
-                <p>Xe vi phạm gần đây</p>
-              </div>
-              <strong>{alertEvents.length}</strong>
-            </div>
-
-            <div className="blacklist-alert-list">
-              {alertEvents.length > 0 ? (
-                alertEvents.map((alert) => (
-                  <div key={alert.id} className="blacklist-alert-card">
-                    <div className="blacklist-alert-icon">
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                    <div className="blacklist-alert-content">
-                      <div className="blacklist-alert-title">
-                        <strong>{alert.plate || "N/A"}</strong>
-                        <span>{alert.alert_type || "BLACKLIST_DETECTED"}</span>
-                      </div>
-                      <p>{alert.message || "Phát hiện xe thuộc blacklist"}</p>
-                      <div className="blacklist-alert-meta">
-                        <span>Camera {alert.camera_id || "N/A"}</span>
-                        <span>Thời gian: {formatVietnamDateTime(alert.timestamp || alert.date_new)}</span>
-                      </div>
-                    </div>
-                    <div className="blacklist-alert-status">
-                      <em>{formatAlertSeverity(alert.severity)}</em>
-                      <span>{alert.is_resolved ? "Đã xử lý" : "Chưa xử lý"}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="blacklist-alert-empty">Chưa có cảnh báo </div>
-              )}
-            </div>
-          </section>
-
-          <section className="ops-panel approved-panel">
-            <div className="panel-header">
-              <div>
-                <h3>{approvedFeedTitle}</h3>
-                <p>Tự động và vừa duyệt gần đây</p>
-              </div>
-            </div>
-
-            <div className="approved-feed">
-              {approvedEvents.length > 0 ? (
-                approvedEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className={`detection-card approved ${
-                      event.image_path || event.plate_image_path ? "has-media" : ""
-                    }`}
-                  >
-                    <EventImages event={event} onPreview={handlePreviewImage} />
-                    <div>
-                      <strong>{formatVehiclePlateTitle(event)}</strong>
-                      <span>
-                        Camera {event.camera_id || "N/A"} - {formatEventType(event.event_type)}
-                      </span>
-                      <p>{formatVietnamDateTime(getEventTime(event))}</p>
-                    </div>
-                    <div className="approved-actions">
-                      <em>{formatEventStatus(event.status)}</em>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        onClick={() => handleSelectEvent(event)}
-                        aria-label="Sửa event"
-                        title="Sửa"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {selectedEvent?.id === event.id && (
-                      <div className="approved-edit-panel">
-                        {renderReviewPanel({ actionLabel: "Lưu", showReject: false })}
+                  : suspiciousPendingEvents.length === 0 && (
+                      <div className="empty-state compact">
+                        Không có xe chờ duyệt
                       </div>
                     )}
-                  </div>
-                ))
-              ) : (
-                <div className="empty-state compact">Chưa có xe vừa duyệt</div>
-              )}
+              </div>
+
+              {selectedEventIsPending && renderReviewPanel()}
             </div>
           </section>
         </>
